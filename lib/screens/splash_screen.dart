@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({Key? key}) : super(key: key);
@@ -28,9 +29,11 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     
     // Navegar para próxima tela após 3 segundos
     Future.delayed(const Duration(seconds: 3), () {
-      // TODO: Navegar para tela de login quando estiver pronta
-      // Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => LoginScreen()));
-    });
+      Navigator.pushReplacement(
+  context,
+  MaterialPageRoute(builder: (_) => const LoginScreen()),
+);
+});
   }
 
   @override
