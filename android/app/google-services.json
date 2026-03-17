@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1033241545443",
+    "project_id": "a-prova-app",
+    "storage_bucket": "a-prova-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1033241545443:android:eece86a8816fd442f0d3d6",
+        "android_client_info": {
+          "package_name": "com.aprova.a_prova_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCT5w4_rssNOxow_jbpQmq_D4i1NrTebms"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
