@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({Key? key}) : super(key: key);
@@ -15,10 +16,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _dataNascimentoController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmarPasswordController = TextEditingController();
-  
+  final _authService = AuthService();
+
   String? _provinciaSelecionada;
   bool _passwordVisivel = false;
   bool _confirmarPasswordVisivel = false;
+  bool _carregando = false;
 
   final List<String> _provincias = [
     'Maputo Cidade',
@@ -52,27 +55,42 @@ class _RegisterScreenState extends State<RegisterScreen> {
       firstDate: DateTime(1950),
       lastDate: DateTime.now(),
     );
-    
     if (picked != null) {
       setState(() {
-        _dataNascimentoController.text = 
+        _dataNascimentoController.text =
             '${picked.day.toString().padLeft(2, '0')}/${picked.month.toString().padLeft(2, '0')}/${picked.year}';
       });
     }
   }
 
-  void _registar() {
-    if (_formKey.currentState!.validate()) {
-      // TODO: Integrar com Firebase depois
+  Future<void> _registar() async {
+    if (!_formKey.currentState!.validate()) return;
+    setState(() => _carregando = true);
+    final resultado = await _authService.registar(
+      nome: _nomeController.text,
+      email: _emailController.text,
+      password: _passwordController.text,
+      telefone: _telefoneController.text,
+      provincia: _provinciaSelecionada!,
+      dataNascimento: _dataNascimentoController.text,
+    );
+    setState(() => _carregando = false);
+    if (!mounted) return;
+    if (resultado['sucesso']) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Conta criada com sucesso!'),
+          content: Text('Conta criada com sucesso! Bem-vindo ao A PROVA!'),
           backgroundColor: Colors.green,
         ),
       );
-      
-      // Voltar para tela de login
       Navigator.pop(context);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(resultado['erro']),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -96,8 +114,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                
-                // Título
                 const Text(
                   'Criar Conta',
                   style: TextStyle(
@@ -110,68 +126,47 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 const SizedBox(height: 8),
                 const Text(
                   'Preenche os teus dados para começar',
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey,
-                  ),
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 32),
-                
-                // Nome Completo
                 TextFormField(
                   controller: _nomeController,
                   decoration: InputDecoration(
                     labelText: 'Nome Completo',
                     prefixIcon: const Icon(Icons.person, color: Color(0xFF007AFF)),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFF007AFF), width: 2),
                     ),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor, insere o teu nome';
-                    }
-                    if (value.split(' ').length < 2) {
-                      return 'Insere nome e apelido';
-                    }
+                    if (value == null || value.isEmpty) return 'Por favor, insere o teu nome';
+                    if (value.split(' ').length < 2) return 'Insere nome e apelido';
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
-                
-                // Email
                 TextFormField(
                   controller: _emailController,
                   keyboardType: TextInputType.emailAddress,
                   decoration: InputDecoration(
                     labelText: 'Email',
                     prefixIcon: const Icon(Icons.email, color: Color(0xFF007AFF)),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFF007AFF), width: 2),
                     ),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor, insere o teu email';
-                    }
-                    if (!value.contains('@')) {
-                      return 'Email inválido';
-                    }
+                    if (value == null || value.isEmpty) return 'Por favor, insere o teu email';
+                    if (!value.contains('@')) return 'Email inválido';
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
-                
-                // Telefone
                 TextFormField(
                   controller: _telefoneController,
                   keyboardType: TextInputType.phone,
@@ -179,61 +174,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     labelText: 'Telefone',
                     prefixIcon: const Icon(Icons.phone, color: Color(0xFF007AFF)),
                     hintText: '84/85/86/87 XXX XXXX',
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFF007AFF), width: 2),
                     ),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor, insere o teu telefone';
-                    }
-                    if (value.length < 9) {
-                      return 'Telefone inválido';
-                    }
+                    if (value == null || value.isEmpty) return 'Por favor, insere o teu telefone';
+                    if (value.length < 9) return 'Telefone inválido';
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
-                
-                // Província
                 DropdownButtonFormField<String>(
                   value: _provinciaSelecionada,
                   decoration: InputDecoration(
                     labelText: 'Província',
                     prefixIcon: const Icon(Icons.location_on, color: Color(0xFF007AFF)),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFF007AFF), width: 2),
                     ),
                   ),
                   items: _provincias.map((provincia) {
-                    return DropdownMenuItem(
-                      value: provincia,
-                      child: Text(provincia),
-                    );
+                    return DropdownMenuItem(value: provincia, child: Text(provincia));
                   }).toList(),
-                  onChanged: (value) {
-                    setState(() {
-                      _provinciaSelecionada = value;
-                    });
-                  },
+                  onChanged: (value) => setState(() => _provinciaSelecionada = value),
                   validator: (value) {
-                    if (value == null) {
-                      return 'Por favor, seleciona a tua província';
-                    }
+                    if (value == null) return 'Por favor, seleciona a tua província';
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
-                
-                // Data de Nascimento
                 TextFormField(
                   controller: _dataNascimentoController,
                   readOnly: true,
@@ -241,9 +215,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     labelText: 'Data de Nascimento',
                     prefixIcon: const Icon(Icons.cake, color: Color(0xFF007AFF)),
                     suffixIcon: const Icon(Icons.calendar_today, color: Color(0xFF007AFF)),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFF007AFF), width: 2),
@@ -251,15 +223,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   onTap: _selecionarData,
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor, seleciona a tua data de nascimento';
-                    }
+                    if (value == null || value.isEmpty) return 'Por favor, seleciona a tua data de nascimento';
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
-                
-                // Password
                 TextFormField(
                   controller: _passwordController,
                   obscureText: !_passwordVisivel,
@@ -269,35 +237,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     suffixIcon: IconButton(
                       icon: Icon(
                         _passwordVisivel ? Icons.visibility : Icons.visibility_off,
-                        color: Color(0xFF007AFF),
+                        color: const Color(0xFF007AFF),
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _passwordVisivel = !_passwordVisivel;
-                        });
-                      },
+                      onPressed: () => setState(() => _passwordVisivel = !_passwordVisivel),
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFF007AFF), width: 2),
                     ),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor, cria uma password';
-                    }
-                    if (value.length < 6) {
-                      return 'Password deve ter pelo menos 6 caracteres';
-                    }
+                    if (value == null || value.isEmpty) return 'Por favor, cria uma password';
+                    if (value.length < 6) return 'Password deve ter pelo menos 6 caracteres';
                     return null;
                   },
                 ),
                 const SizedBox(height: 16),
-                
-                // Confirmar Password
                 TextFormField(
                   controller: _confirmarPasswordController,
                   obscureText: !_confirmarPasswordVisivel,
@@ -307,57 +263,50 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     suffixIcon: IconButton(
                       icon: Icon(
                         _confirmarPasswordVisivel ? Icons.visibility : Icons.visibility_off,
-                        color: Color(0xFF007AFF),
+                        color: const Color(0xFF007AFF),
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _confirmarPasswordVisivel = !_confirmarPasswordVisivel;
-                        });
-                      },
+                      onPressed: () => setState(() => _confirmarPasswordVisivel = !_confirmarPasswordVisivel),
                     ),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: Color(0xFF007AFF), width: 2),
                     ),
                   ),
                   validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Por favor, confirma a password';
-                    }
-                    if (value != _passwordController.text) {
-                      return 'As passwords não coincidem';
-                    }
+                    if (value == null || value.isEmpty) return 'Por favor, confirma a password';
+                    if (value != _passwordController.text) return 'As passwords não coincidem';
                     return null;
                   },
                 ),
                 const SizedBox(height: 32),
-                
-                // Botão Registar
                 ElevatedButton(
-                  onPressed: _registar,
+                  onPressed: _carregando ? null : _registar,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF007AFF),
                     padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 2,
                   ),
-                  child: const Text(
-                    'Criar Conta',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                    ),
-                  ),
+                  child: _carregando
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                      : const Text(
+                          'Criar Conta',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
                 ),
                 const SizedBox(height: 16),
-                
-                // Link para Login
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
