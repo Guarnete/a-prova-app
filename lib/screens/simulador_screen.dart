@@ -64,7 +64,7 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
       'opcoes': [
         'A) 1964',
         'B) 1970',
-        'C') 1975',
+        'C) 1975',
         'D) 1980',
       ],
       'correcta': 2,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
+import 'instituicoes_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({Key? key}) : super(key: key);
@@ -232,7 +233,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         icone: Icons.edit_note,
                         titulo: 'Estudar',
                         subtitulo: 'Praticar questões',
-                        aoTapar: () {},
+                        aoTapar: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const InstituicoesScreen(),
+                            ),
+                          );
+                        },
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -241,7 +249,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         icone: Icons.laptop_mac,
                         titulo: 'Simular Exame',
                         subtitulo: 'Teste completo',
-                        aoTapar: () {},
+                        aoTapar: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const InstituicoesScreen(),
+                            ),
+                          );
+                        },
                       ),
                     ),
                   ],
@@ -261,7 +276,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 12),
 
-              // BOTÃO MESTRE AI — DESTAQUE
+              // BOTÃO MESTRE AI
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                 child: GestureDetector(
