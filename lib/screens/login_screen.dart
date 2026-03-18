@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../widgets/app_dialog.dart';
 import 'register_screen.dart';
+import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({Key? key}) : super(key: key);
@@ -35,18 +37,22 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _carregando = false);
     if (!mounted) return;
     if (resultado['sucesso']) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Login realizado com sucesso!'),
-          backgroundColor: Colors.green,
-        ),
+      final user = _authService.currentUser;
+      final nome = user?.displayName ?? 'Estudante';
+      await AppDialog.bemVindo(
+        context: context,
+        nome: nome,
+        aoFechar: () {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const HomeScreen()),
+          );
+        },
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(resultado['erro']),
-          backgroundColor: Colors.red,
-        ),
+      await AppDialog.erro(
+        context: context,
+        mensagem: resultado['erro'],
       );
     }
   }
@@ -94,15 +100,17 @@ class _LoginScreenState extends State<LoginScreen> {
                 email: emailController.text,
               );
               if (!mounted) return;
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text(resultado['sucesso']
-                      ? 'Email de recuperação enviado!'
-                      : resultado['erro']),
-                  backgroundColor:
-                      resultado['sucesso'] ? Colors.green : Colors.red,
-                ),
-              );
+              if (resultado['sucesso']) {
+                await AppDialog.emailEnviado(
+                  context: context,
+                  email: emailController.text,
+                );
+              } else {
+                await AppDialog.erro(
+                  context: context,
+                  mensagem: resultado['erro'],
+                );
+              }
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF007AFF),
@@ -157,9 +165,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     decoration: InputDecoration(
                       labelText: 'Email',
                       prefixIcon: const Icon(Icons.email, color: Color(0xFF007AFF)),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: Color(0xFF007AFF), width: 2),
@@ -185,9 +191,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         onPressed: () => setState(() => _passwordVisivel = !_passwordVisivel),
                       ),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(12),
                         borderSide: const BorderSide(color: Color(0xFF007AFF), width: 2),
@@ -227,9 +231,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF007AFF),
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                       elevation: 2,
                     ),
                     child: _carregando
@@ -267,9 +269,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       side: const BorderSide(color: Color(0xFF007AFF), width: 2),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
                     child: const Text(
                       'Criar Conta Nova',

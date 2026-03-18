@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../widgets/app_dialog.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({Key? key}) : super(key: key);
@@ -77,19 +78,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _carregando = false);
     if (!mounted) return;
     if (resultado['sucesso']) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Conta criada com sucesso! Bem-vindo ao A PROVA!'),
-          backgroundColor: Colors.green,
-        ),
+      await AppDialog.sucesso(
+        context: context,
+        titulo: 'Conta criada com sucesso!',
+        mensagem: 'Bem-vindo ao A PROVA, ${_nomeController.text.split(' ').first}! A tua jornada para o exame começa agora. 🚀',
+        aoFechar: () => Navigator.pop(context),
       );
-      Navigator.pop(context);
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(resultado['erro']),
-          backgroundColor: Colors.red,
-        ),
+      await AppDialog.erro(
+        context: context,
+        mensagem: resultado['erro'],
       );
     }
   }
