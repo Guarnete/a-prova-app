@@ -12,7 +12,7 @@ void main() async {
 }
 
 class AProvaApp extends StatelessWidget {
-  const AProvaApp({Key? key}) : super(key: key);
+  const AProvaApp({super.key});
 
   @override
   Widget build(BuildContext context) {

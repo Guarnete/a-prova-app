@@ -5,7 +5,7 @@ import 'login_screen.dart';
 import 'instituicoes_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -15,7 +15,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final _authService = AuthService();
   String _nomeUtilizador = '';
   String _iniciaisUtilizador = '';
-  String _plano = 'Plano Gratuito';
+  final String _plano = 'Plano Gratuito';
 
   @override
   void initState() {

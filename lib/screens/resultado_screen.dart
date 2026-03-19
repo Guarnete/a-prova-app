@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'disciplinas_screen.dart';
 import 'instituicoes_screen.dart';
 
 class ResultadoScreen extends StatelessWidget {
@@ -15,7 +14,7 @@ class ResultadoScreen extends StatelessWidget {
   final Map<int, int> respostas;
 
   const ResultadoScreen({
-    Key? key,
+    super.key,
     required this.instituicaoSigla,
     required this.cursoNome,
     required this.ano,
@@ -26,7 +25,7 @@ class ResultadoScreen extends StatelessWidget {
     required this.tempoGasto,
     required this.questoes,
     required this.respostas,
-  }) : super(key: key);
+  });
 
   String _formatarTempo(int segundos) {
     final h = segundos ~/ 3600;
@@ -288,7 +287,7 @@ class ResultadoScreen extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   color: const Color(0xFFE6F1FB),
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: const Color(0xFF007AFF).withOpacity(0.2)),
+                                  border: Border.all(color: const Color(0xFF007AFF).withValues(alpha: 0.2)),
                                 ),
                                 child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,

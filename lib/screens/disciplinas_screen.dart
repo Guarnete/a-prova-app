@@ -8,12 +8,12 @@ class DisciplinasScreen extends StatelessWidget {
   final String disciplinas;
 
   const DisciplinasScreen({
-    Key? key,
+    super.key,
     required this.instituicaoSigla,
     required this.cursoNome,
     required this.ano,
     required this.disciplinas,
-  }) : super(key: key);
+  });
 
   List<String> get _listaDisciplinas =>
       disciplinas.split(',').map((d) => d.trim()).toList();
@@ -145,7 +145,7 @@ class DisciplinasScreen extends StatelessWidget {
                         border: Border.all(color: Colors.grey.shade200),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.04),
+                            color: Colors.black.withValues(alpha: 0.04),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),

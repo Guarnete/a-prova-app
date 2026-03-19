@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../widgets/app_dialog.dart';
+import 'onboarding_screen.dart';
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({Key? key}) : super(key: key);
+  const RegisterScreen({super.key});
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();
@@ -81,8 +82,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
       await AppDialog.sucesso(
         context: context,
         titulo: 'Conta criada com sucesso!',
-        mensagem: 'Bem-vindo ao A PROVA, ${_nomeController.text.split(' ').first}! A tua jornada para o exame começa agora. 🚀',
-        aoFechar: () => Navigator.pop(context),
+        mensagem: 'Bem-vindo ao A PROVA, ${_nomeController.text.split(' ').first}! Escolhe a tua instituição para começar. 🚀',
+        aoFechar: () {
+          Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+            (route) => false,
+          );
+        },
       );
     } else {
       await AppDialog.erro(
@@ -186,7 +193,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 ),
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
-                  value: _provinciaSelecionada,
+                  initialValue: _provinciaSelecionada,
                   decoration: InputDecoration(
                     labelText: 'Província',
                     prefixIcon: const Icon(Icons.location_on, color: Color(0xFF007AFF)),

@@ -8,12 +8,12 @@ class AnosScreen extends StatelessWidget {
   final String disciplinas;
 
   const AnosScreen({
-    Key? key,
+    super.key,
     required this.instituicaoId,
     required this.instituicaoSigla,
     required this.cursoNome,
     required this.disciplinas,
-  }) : super(key: key);
+  });
 
   static const List<Map<String, dynamic>> _anos = [
     {'ano': 2020, 'tier': 'Prata', 'bloqueado': false, 'cor': Color(0xFF007AFF)},
@@ -138,7 +138,7 @@ class AnosScreen extends StatelessWidget {
                         ),
                         boxShadow: bloqueado ? [] : [
                           BoxShadow(
-                            color: cor.withOpacity(0.15),
+                            color: cor.withValues(alpha: 0.15),
                             blurRadius: 8,
                             offset: const Offset(0, 3),
                           ),
@@ -152,7 +152,7 @@ class AnosScreen extends StatelessWidget {
                             width: 44,
                             height: 44,
                             decoration: BoxDecoration(
-                              color: bloqueado ? Colors.grey.shade200 : cor.withOpacity(0.1),
+                              color: bloqueado ? Colors.grey.shade200 : cor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(22),
                             ),
                             child: Icon(
@@ -176,7 +176,7 @@ class AnosScreen extends StatelessWidget {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                             decoration: BoxDecoration(
-                              color: bloqueado ? Colors.grey.shade200 : cor.withOpacity(0.1),
+                              color: bloqueado ? Colors.grey.shade200 : cor.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
@@ -215,7 +215,7 @@ class AnosScreen extends StatelessWidget {
                 width: 70,
                 height: 70,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD4AF37).withOpacity(0.1),
+                  color: const Color(0xFFD4AF37).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Center(

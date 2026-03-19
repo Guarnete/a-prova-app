@@ -27,7 +27,7 @@ class AppDialog {
                 width: 80,
                 height: 80,
                 decoration: BoxDecoration(
-                  color: corEmoji.withOpacity(0.1),
+                  color: corEmoji.withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: Center(

@@ -3,9 +3,10 @@ import '../services/auth_service.dart';
 import '../widgets/app_dialog.dart';
 import 'register_screen.dart';
 import 'home_screen.dart';
+import 'onboarding_screen.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({Key? key}) : super(key: key);
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -30,25 +31,41 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _entrar() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _carregando = true);
+
     final resultado = await _authService.login(
       email: _emailController.text,
       password: _passwordController.text,
     );
+
     setState(() => _carregando = false);
     if (!mounted) return;
+
     if (resultado['sucesso']) {
-      final user = _authService.currentUser;
-      final nome = user?.displayName ?? 'Estudante';
-      await AppDialog.bemVindo(
-        context: context,
-        nome: nome,
-        aoFechar: () {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const HomeScreen()),
-          );
-        },
-      );
+      // Verificar se o utilizador já completou o onboarding
+      final onboardingFeito = await _authService.onboardingCompleto();
+      if (!mounted) return;
+
+      if (!onboardingFeito) {
+        // Primeira vez → ir para Onboarding
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+        );
+      } else {
+        // Já tem perfil → mostrar boas-vindas e ir para Home
+        final user = _authService.currentUser;
+        final nome = user?.displayName ?? 'Estudante';
+        await AppDialog.bemVindo(
+          context: context,
+          nome: nome,
+          aoFechar: () {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const HomeScreen()),
+            );
+          },
+        );
+      }
     } else {
       await AppDialog.erro(
         context: context,
@@ -99,7 +116,7 @@ class _LoginScreenState extends State<LoginScreen> {
               final resultado = await _authService.recuperarPassword(
                 email: emailController.text,
               );
-              if (!mounted) return;
+              if (!context.mounted) return;
               if (resultado['sucesso']) {
                 await AppDialog.emailEnviado(
                   context: context,

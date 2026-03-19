@@ -8,12 +8,12 @@ class SimuladorScreen extends StatefulWidget {
   final String disciplina;
 
   const SimuladorScreen({
-    Key? key,
+    super.key,
     required this.instituicaoSigla,
     required this.cursoNome,
     required this.ano,
     required this.disciplina,
-  }) : super(key: key);
+  });
 
   @override
   State<SimuladorScreen> createState() => _SimuladorScreenState();
@@ -407,7 +407,7 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                           ),
                         ),
                       );
-                    }).toList(),
+                    }),
                   ],
                 ),
               ),

@@ -7,11 +7,11 @@ class CursosScreen extends StatefulWidget {
   final String instituicaoNome;
 
   const CursosScreen({
-    Key? key,
+    super.key,
     required this.instituicaoId,
     required this.instituicaoSigla,
     required this.instituicaoNome,
-  }) : super(key: key);
+  });
 
   @override
   State<CursosScreen> createState() => _CursosScreenState();
@@ -196,7 +196,7 @@ class _CursosScreenState extends State<CursosScreen> {
                               border: Border.all(color: Colors.grey.shade200),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.04),
+                                  color: Colors.black.withValues(alpha: 0.04),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),

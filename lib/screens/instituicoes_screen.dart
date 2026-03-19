@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'cursos_screen.dart';
 
 class InstituicoesScreen extends StatefulWidget {
-  const InstituicoesScreen({Key? key}) : super(key: key);
+  const InstituicoesScreen({super.key});
 
   @override
   State<InstituicoesScreen> createState() => _InstituicoesScreenState();
@@ -195,7 +195,7 @@ class _InstituicoesScreenState extends State<InstituicoesScreen> {
                               border: Border.all(color: Colors.grey.shade200),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.04),
+                                  color: Colors.black.withValues(alpha: 0.04),
                                   blurRadius: 8,
                                   offset: const Offset(0, 2),
                                 ),
