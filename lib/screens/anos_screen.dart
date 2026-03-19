@@ -27,22 +27,12 @@ class _AnosScreenState extends State<AnosScreen> {
 
   String _planoUtilizador = 'gratuito';
   Map<String, dynamic> _progressoAnos = {};
+
+  // Anos carregados dinamicamente do Firestore
+  List<Map<String, dynamic>> _anosDisponiveis = [];
+
   bool _carregando = true;
 
-  // Definição dos anos com plano mínimo necessário
-  // Estrutura vinda do Firestore: colecção anos dentro do curso
-  // Por agora usamos lista estática — será dinâmica com painel admin
-  static const List<Map<String, dynamic>> _anosDisponiveis = [
-    {'ano': 2019, 'planoMinimo': 'gratuito'},
-    {'ano': 2020, 'planoMinimo': 'bronze'},
-    {'ano': 2021, 'planoMinimo': 'bronze'},
-    {'ano': 2022, 'planoMinimo': 'prata'},
-    {'ano': 2023, 'planoMinimo': 'prata'},
-    {'ano': 2024, 'planoMinimo': 'ouro'},
-    {'ano': 2025, 'planoMinimo': 'ouro'},
-  ];
-
-  // Hierarquia de planos para comparação
   static const Map<String, int> _hierarquiaPlanos = {
     'gratuito': 0,
     'bronze': 1,
@@ -51,11 +41,10 @@ class _AnosScreenState extends State<AnosScreen> {
     'diamante': 4,
   };
 
-  // Cores e nomes por plano
   static const Map<String, Color> _coresPlano = {
     'gratuito': Color(0xFF007AFF),
     'bronze': Color(0xFFCD7F32),
-    'prata': Color(0xFF9E9E9E),
+    'prata': Color(0xFF757575),
     'ouro': Color(0xFFD4AF37),
   };
 
@@ -69,16 +58,67 @@ class _AnosScreenState extends State<AnosScreen> {
   @override
   void initState() {
     super.initState();
-    _carregarDadosUtilizador();
+    _carregarTudo();
+  }
+
+  Future<void> _carregarTudo() async {
+    setState(() => _carregando = true);
+    await Future.wait([
+      _carregarAnos(),
+      _carregarDadosUtilizador(),
+    ]);
+    if (mounted) setState(() => _carregando = false);
+  }
+
+  // Carrega anos do Firestore: instituicoes/{id}/cursos/{cursoId}/anos
+  Future<void> _carregarAnos() async {
+    try {
+      // Encontra o documento do curso dentro da instituição
+      final cursosSnapshot = await _firestore
+          .collection('instituicoes')
+          .doc(widget.instituicaoId)
+          .collection('cursos')
+          .where('nome', isEqualTo: widget.cursoNome)
+          .limit(1)
+          .get();
+
+      if (cursosSnapshot.docs.isEmpty) return;
+
+      final cursoId = cursosSnapshot.docs.first.id;
+
+      // Carrega os anos activos ordenados
+      final anosSnapshot = await _firestore
+          .collection('instituicoes')
+          .doc(widget.instituicaoId)
+          .collection('cursos')
+          .doc(cursoId)
+          .collection('anos')
+          .where('activo', isEqualTo: true)
+          .orderBy('ano')
+          .get();
+
+      final anos = anosSnapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'ano': data['ano'] as int,
+          'planoMinimo': data['planoMinimo'] as String? ?? 'gratuito',
+        };
+      }).toList();
+
+      if (mounted) setState(() => _anosDisponiveis = anos);
+    } catch (e) {
+      // Se não há anos no Firestore, mostra lista vazia
+      if (mounted) setState(() => _anosDisponiveis = []);
+    }
   }
 
   Future<void> _carregarDadosUtilizador() async {
-    setState(() => _carregando = true);
     try {
       final uid = _auth.currentUser?.uid;
       if (uid == null) return;
 
-      final doc = await _firestore.collection('utilizadores').doc(uid).get();
+      final doc =
+          await _firestore.collection('utilizadores').doc(uid).get();
       final dados = doc.data();
       if (dados == null) return;
 
@@ -87,7 +127,6 @@ class _AnosScreenState extends State<AnosScreen> {
             .map((c) => Map<String, dynamic>.from(c)),
       );
 
-      // Encontra o curso activo correspondente
       final cursoActivo = cursos.firstWhere(
         (c) =>
             c['instituicaoId'] == widget.instituicaoId &&
@@ -101,36 +140,34 @@ class _AnosScreenState extends State<AnosScreen> {
           _progressoAnos = Map<String, dynamic>.from(
             cursoActivo['progressoAnos'] ?? {},
           );
-          _carregando = false;
         });
       }
     } catch (e) {
-      if (mounted) setState(() => _carregando = false);
+      // mantém valores por defeito
     }
   }
 
-  // Verifica se o utilizador tem acesso a um ano
   bool _temAcesso(Map<String, dynamic> anoData) {
     final planoMinimo = anoData['planoMinimo'] as String;
     final ano = anoData['ano'] as int;
 
-    // Plano gratuito: só acesso ao ano gratuito, sempre
+    // Gratuito: só acesso ao ano com planoMinimo='gratuito'
     if (_planoUtilizador == 'gratuito') {
       return planoMinimo == 'gratuito';
     }
 
-    // Planos pagos: precisa ter o plano mínimo
+    // Verifica nível do plano
     final nivelUtilizador = _hierarquiaPlanos[_planoUtilizador] ?? 0;
     final nivelMinimo = _hierarquiaPlanos[planoMinimo] ?? 0;
-
     if (nivelUtilizador < nivelMinimo) return false;
 
-    // Primeiro ano pago: sempre acessível se tiver o plano
+    // Primeiro ano deste plano: sempre acessível se tiver o plano
     final anosDoPlano = _anosDisponiveis
         .where((a) => a['planoMinimo'] == planoMinimo)
         .toList();
-
-    if (anosDoPlano.isNotEmpty && anosDoPlano.first['ano'] == ano) return true;
+    if (anosDoPlano.isNotEmpty && anosDoPlano.first['ano'] == ano) {
+      return true;
+    }
 
     // Anos seguintes: precisa nota ≥ 13 no ano anterior
     final indexAno = _anosDisponiveis.indexWhere((a) => a['ano'] == ano);
@@ -157,14 +194,31 @@ class _AnosScreenState extends State<AnosScreen> {
           children: [
             _buildHeader(),
             _buildLegenda(),
-            _carregando
-                ? const Expanded(
-                    child: Center(
-                      child: CircularProgressIndicator(
-                          color: Color(0xFF007AFF)),
-                    ),
-                  )
-                : _buildGrid(),
+            if (_carregando)
+              const Expanded(
+                child: Center(
+                  child: CircularProgressIndicator(color: Color(0xFF007AFF)),
+                ),
+              )
+            else if (_anosDisponiveis.isEmpty)
+              const Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.hourglass_empty,
+                          color: Colors.grey, size: 48),
+                      SizedBox(height: 12),
+                      Text(
+                        'Ainda não há exames disponíveis.',
+                        style: TextStyle(color: Colors.grey, fontSize: 15),
+                      ),
+                    ],
+                  ),
+                ),
+              )
+            else
+              _buildGrid(),
           ],
         ),
       ),
@@ -198,10 +252,11 @@ class _AnosScreenState extends State<AnosScreen> {
                 Text(
                   widget.instituicaoSigla,
                   style: const TextStyle(
-                      color: Color(0xFFD4AF37),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 1.5),
+                    color: Color(0xFFD4AF37),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 1.5,
+                  ),
                 ),
                 const Text(
                   'Escolhe o ano do exame',
@@ -231,17 +286,13 @@ class _AnosScreenState extends State<AnosScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
-          _LegendaItem(
-              cor: _coresPlano['gratuito']!, texto: 'Gratuito'),
-          const SizedBox(width: 16),
-          _LegendaItem(
-              cor: _coresPlano['bronze']!, texto: 'Bronze'),
-          const SizedBox(width: 16),
-          _LegendaItem(
-              cor: _coresPlano['prata']!, texto: 'Prata'),
-          const SizedBox(width: 16),
-          _LegendaItem(
-              cor: _coresPlano['ouro']!, texto: 'Ouro'),
+          _LegendaItem(cor: _coresPlano['gratuito']!, texto: 'Gratuito'),
+          const SizedBox(width: 14),
+          _LegendaItem(cor: _coresPlano['bronze']!, texto: 'Bronze'),
+          const SizedBox(width: 14),
+          _LegendaItem(cor: _coresPlano['prata']!, texto: 'Prata'),
+          const SizedBox(width: 14),
+          _LegendaItem(cor: _coresPlano['ouro']!, texto: 'Ouro'),
         ],
       ),
     );
@@ -249,136 +300,142 @@ class _AnosScreenState extends State<AnosScreen> {
 
   Widget _buildGrid() {
     return Expanded(
-      child: GridView.builder(
-        padding: const EdgeInsets.all(12),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 10,
-          mainAxisSpacing: 10,
-          childAspectRatio: 0.95, // 4 cards visíveis sem scroll
-        ),
-        itemCount: _anosDisponiveis.length,
-        itemBuilder: (context, index) {
-          final item = _anosDisponiveis[index];
-          final temAcesso = _temAcesso(item);
-          final planoMinimo = item['planoMinimo'] as String;
-          final cor = _corDoAno(planoMinimo);
-          final ano = item['ano'] as int;
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final largura = constraints.maxWidth;
+          final ratio = largura > 600 ? 1.4 : 0.95;
 
-          // Progresso deste ano
-          final progressoAno = _progressoAnos[ano.toString()]
-              as Map<String, dynamic>?;
-          final melhorNota =
-              (progressoAno?['melhorNota'] ?? 0).toDouble();
-          final tentativas =
-              (progressoAno?['tentativas'] ?? 0) as int;
+          return GridView.builder(
+            padding: const EdgeInsets.all(12),
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+              childAspectRatio: ratio,
+            ),
+            itemCount: _anosDisponiveis.length,
+            itemBuilder: (context, index) {
+              final item = _anosDisponiveis[index];
+              final temAcesso = _temAcesso(item);
+              final planoMinimo = item['planoMinimo'] as String;
+              final cor = _corDoAno(planoMinimo);
+              final ano = item['ano'] as int;
 
-          return GestureDetector(
-            onTap: () {
-              if (!temAcesso) {
-                _mostrarDialogBloqueado(context, ano, planoMinimo);
-              } else {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => DisciplinasScreen(
-                      instituicaoSigla: widget.instituicaoSigla,
-                      cursoNome: widget.cursoNome,
-                      ano: ano,
-                      disciplinas: widget.disciplinas,
+              final progressoAno = _progressoAnos[ano.toString()]
+                  as Map<String, dynamic>?;
+              final melhorNota =
+                  (progressoAno?['melhorNota'] ?? 0).toDouble();
+              final tentativas =
+                  (progressoAno?['tentativas'] ?? 0) as int;
+
+              return GestureDetector(
+                onTap: () {
+                  if (!temAcesso) {
+                    _mostrarDialogBloqueado(context, ano, planoMinimo);
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => DisciplinasScreen(
+                          instituicaoSigla: widget.instituicaoSigla,
+                          cursoNome: widget.cursoNome,
+                          ano: ano,
+                          disciplinas: widget.disciplinas,
+                        ),
+                      ),
+                    );
+                  }
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  decoration: BoxDecoration(
+                    color: temAcesso
+                        ? Colors.white
+                        : cor.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(
+                      color: cor.withValues(
+                          alpha: temAcesso ? 1.0 : 0.35),
+                      width: 2,
+                    ),
+                    boxShadow: temAcesso
+                        ? [
+                            BoxShadow(
+                              color: cor.withValues(alpha: 0.12),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            )
+                          ]
+                        : [],
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            color: cor.withValues(
+                                alpha: temAcesso ? 0.1 : 0.06),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Icon(
+                            temAcesso ? Icons.lock_open : Icons.lock,
+                            color: cor.withValues(
+                                alpha: temAcesso ? 1.0 : 0.45),
+                            size: 18,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '$ano',
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w800,
+                            color: cor.withValues(
+                                alpha: temAcesso ? 1.0 : 0.45),
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: cor.withValues(
+                                alpha: temAcesso ? 0.1 : 0.06),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            _nomesPlano[planoMinimo] ?? planoMinimo,
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: cor.withValues(
+                                  alpha: temAcesso ? 1.0 : 0.45),
+                            ),
+                          ),
+                        ),
+                        if (temAcesso && tentativas > 0) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            'Melhor: ${melhorNota.toStringAsFixed(1)}/20',
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: melhorNota >= 13
+                                  ? Colors.green.shade600
+                                  : Colors.red.shade400,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
-                );
-              }
+                ),
+              );
             },
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 200),
-              decoration: BoxDecoration(
-                color: temAcesso ? Colors.white : Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: temAcesso ? cor : Colors.grey.shade300,
-                  width: 2,
-                ),
-                boxShadow: temAcesso
-                    ? [
-                        BoxShadow(
-                          color: cor.withValues(alpha: 0.12),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        )
-                      ]
-                    : [],
-              ),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Ícone cadeado ou aberto
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: temAcesso
-                            ? cor.withValues(alpha: 0.1)
-                            : Colors.grey.shade200,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        temAcesso ? Icons.lock_open : Icons.lock,
-                        color: temAcesso ? cor : Colors.grey.shade400,
-                        size: 18,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    // Ano
-                    Text(
-                      '$ano',
-                      style: TextStyle(
-                        fontSize: 26,
-                        fontWeight: FontWeight.w800,
-                        color: temAcesso ? cor : Colors.grey.shade400,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    // Badge plano
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: temAcesso
-                            ? cor.withValues(alpha: 0.1)
-                            : Colors.grey.shade200,
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        _nomesPlano[planoMinimo] ?? planoMinimo,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: temAcesso ? cor : Colors.grey.shade400,
-                        ),
-                      ),
-                    ),
-                    // Melhor nota (se já fez)
-                    if (temAcesso && tentativas > 0) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        'Melhor: ${melhorNota.toStringAsFixed(1)}/20',
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: melhorNota >= 13
-                              ? Colors.green.shade600
-                              : Colors.red.shade400,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
           );
         },
       ),
@@ -389,8 +446,6 @@ class _AnosScreenState extends State<AnosScreen> {
       BuildContext context, int ano, String planoMinimo) {
     final cor = _corDoAno(planoMinimo);
     final nomePlano = _nomesPlano[planoMinimo] ?? planoMinimo;
-
-    // Verifica se está bloqueado por nota ou por plano
     final nivelUtilizador = _hierarquiaPlanos[_planoUtilizador] ?? 0;
     final nivelMinimo = _hierarquiaPlanos[planoMinimo] ?? 0;
     final bloqueadoPorPlano = nivelUtilizador < nivelMinimo;
@@ -398,8 +453,8 @@ class _AnosScreenState extends State<AnosScreen> {
     showDialog(
       context: context,
       builder: (context) => Dialog(
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20)),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -447,7 +502,9 @@ class _AnosScreenState extends State<AnosScreen> {
                     elevation: 0,
                   ),
                   child: Text(
-                    bloqueadoPorPlano ? 'Ver Planos' : 'Continuar a treinar',
+                    bloqueadoPorPlano
+                        ? 'Ver Planos'
+                        : 'Continuar a treinar',
                     style: const TextStyle(
                         fontWeight: FontWeight.bold, color: Colors.white),
                   ),
