@@ -52,7 +52,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       });
     } catch (e) {
       setState(() => _isLoadingInstituicoes = false);
-      if (mounted) _mostrarErro('Erro ao carregar instituições. Verifica a ligação.');
+      if (mounted) _mostrarErro('Erro ao carregar instituições.');
     }
   }
 
@@ -73,7 +73,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       });
     } catch (e) {
       setState(() => _isLoadingCursos = false);
-      if (mounted) _mostrarErro('Erro ao carregar cursos. Verifica a ligação.');
+      if (mounted) _mostrarErro('Erro ao carregar cursos.');
     }
   }
 
@@ -153,39 +153,45 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildHeader(),
-            _buildIndicadorPassos(),
-            _buildBarraPesquisa(),
-            Expanded(child: _buildLista()),
-            if (_passo == 2) _buildBotaoConcluir(),
-          ],
-        ),
+      body: Column(
+        children: [
+          _buildHeader(),
+          _buildIndicadorPassos(),
+          _buildBarraPesquisa(),
+          Expanded(child: _buildLista()),
+          if (_passo == 2) _buildBotaoConcluir(),
+        ],
       ),
     );
   }
 
+  // ── HEADER AZUL ────────────────────────────────────────────────────────────
   Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFF007AFF),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        MediaQuery.of(context).padding.top + 16,
+        20,
+        20,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (_passo == 2)
+          // Botão voltar (passo 2)
+          if (_passo == 2) ...[
             GestureDetector(
               onTap: _voltarParaInstituicoes,
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.arrow_back_ios, color: Color(0xFF007AFF), size: 16),
+                  Icon(Icons.arrow_back_ios, color: Colors.white, size: 16),
                   SizedBox(width: 4),
                   Text(
                     'Instituições',
                     style: TextStyle(
-                      color: Color(0xFF007AFF),
+                      color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                     ),
@@ -193,40 +199,49 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ],
               ),
             ),
-          if (_passo == 2) const SizedBox(height: 20),
+            const SizedBox(height: 12),
+          ],
+          // Subtítulo dourado
           Text(
-            _passo == 1 ? 'BEM-VINDO À A PROVA' : (_instituicaoSeleccionada!['sigla'] ?? '').toString().toUpperCase(),
+            _passo == 1
+                ? 'BEM-VINDO À A PROVA'
+                : (_instituicaoSeleccionada!['sigla'] ?? '').toString().toUpperCase(),
             style: const TextStyle(
               color: Color(0xFFD4AF37),
-              fontSize: 12,
+              fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 1.8,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
+          // Título principal — numa só linha
           Text(
-            _passo == 1 ? 'Selecciona a tua\ninstituição' : 'Selecciona o teu curso',
+            _passo == 1 ? 'Selecciona a tua instituição' : 'Selecciona o teu curso',
             style: const TextStyle(
-              color: Color(0xFF1A1A1A),
-              fontSize: 26,
+              color: Colors.white,
+              fontSize: 22,
               fontWeight: FontWeight.w700,
-              height: 1.2,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 4),
           Text(
-            _passo == 1 ? 'Onde vais candidatar-te?' : 'Qual é o curso que pretendes?',
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 15),
+            _passo == 1
+                ? 'Onde vais candidatar-te?'
+                : 'Qual é o curso que pretendes?',
+            style: const TextStyle(color: Colors.white70, fontSize: 14),
           ),
-          const SizedBox(height: 28),
         ],
       ),
     );
   }
 
+  // ── INDICADOR DE PASSOS ────────────────────────────────────────────────────
   Widget _buildIndicadorPassos() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
       child: Row(
         children: [
           _buildPasso(numero: 1, label: 'Instituição', activo: _passo == 1, completo: _passo > 1),
@@ -284,11 +299,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  // ── BARRA DE PESQUISA ──────────────────────────────────────────────────────
   Widget _buildBarraPesquisa() {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
       child: Container(
-        height: 48,
+        height: 46,
         decoration: BoxDecoration(
           color: Colors.grey.shade100,
           borderRadius: BorderRadius.circular(12),
@@ -310,11 +326,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  // ── LISTA ──────────────────────────────────────────────────────────────────
   Widget _buildLista() {
     final isLoading = _passo == 1 ? _isLoadingInstituicoes : _isLoadingCursos;
 
     if (isLoading) {
-      return const Center(child: CircularProgressIndicator(color: Color(0xFF007AFF)));
+      return const Center(
+        child: CircularProgressIndicator(color: Color(0xFF007AFF)),
+      );
     }
 
     final lista = _listaFiltrada;
@@ -336,18 +355,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       itemCount: lista.length,
       itemBuilder: (context, index) {
         final item = lista[index];
         final isSeleccionado = _passo == 2 &&
             _cursoSeleccionado != null &&
             _cursoSeleccionado!['id'] == item['id'];
-
         return _buildItemLista(
           item: item,
           isSeleccionado: isSeleccionado,
-          onTap: () => _passo == 1 ? _seleccionarInstituicao(item) : _seleccionarCurso(item),
+          onTap: () => _passo == 1
+              ? _seleccionarInstituicao(item)
+              : _seleccionarCurso(item),
         );
       },
     );
@@ -365,26 +385,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
           color: isSeleccionado
               ? const Color(0xFF007AFF).withValues(alpha: 0.06)
-              : Colors.grey.shade50,
+              : Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSeleccionado ? const Color(0xFF007AFF) : Colors.grey.shade200,
-            width: isSeleccionado ? 1.5 : 1,
+            // Bordas azuis sempre visíveis, mais destacadas se seleccionado
+            color: isSeleccionado
+                ? const Color(0xFF007AFF)
+                : const Color(0xFF007AFF).withValues(alpha: 0.3),
+            width: isSeleccionado ? 2 : 1,
           ),
         ),
         child: Row(
           children: [
+            // Ícone / sigla
             Container(
               width: 44,
               height: 44,
               decoration: BoxDecoration(
                 color: isSeleccionado
                     ? const Color(0xFF007AFF).withValues(alpha: 0.1)
-                    : Colors.grey.shade100,
+                    : const Color(0xFFE6F1FB),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Center(
@@ -393,7 +417,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       ? sigla.substring(0, sigla.length > 3 ? 3 : sigla.length)
                       : _iconeCurso(item['nome'] ?? ''),
                   style: TextStyle(
-                    color: isSeleccionado ? const Color(0xFF007AFF) : Colors.grey.shade600,
+                    color: const Color(0xFF007AFF),
                     fontWeight: FontWeight.w700,
                     fontSize: _passo == 1 ? 11 : 18,
                   ),
@@ -401,6 +425,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
             const SizedBox(width: 14),
+            // Nome e cidade
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -408,23 +433,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Text(
                     item['nome'] ?? '',
                     style: TextStyle(
-                      color: isSeleccionado ? const Color(0xFF007AFF) : const Color(0xFF1A1A1A),
+                      color: isSeleccionado
+                          ? const Color(0xFF007AFF)
+                          : const Color(0xFF1A1A1A),
                       fontSize: 15,
-                      fontWeight: isSeleccionado ? FontWeight.w600 : FontWeight.w400,
+                      fontWeight: isSeleccionado
+                          ? FontWeight.w600
+                          : FontWeight.w500,
                     ),
                   ),
                   if (_passo == 1 && item['cidade'] != null) ...[
                     const SizedBox(height: 2),
                     Text(
                       item['cidade'],
-                      style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                      style: TextStyle(
+                          color: Colors.grey.shade500, fontSize: 12),
                     ),
                   ],
                 ],
               ),
             ),
+            // Seta / check
             if (_passo == 1)
-              Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 20)
+              const Icon(Icons.chevron_right,
+                  color: Color(0xFF007AFF), size: 20)
             else
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -432,9 +464,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 height: 22,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isSeleccionado ? const Color(0xFF007AFF) : Colors.transparent,
+                  color: isSeleccionado
+                      ? const Color(0xFF007AFF)
+                      : Colors.transparent,
                   border: Border.all(
-                    color: isSeleccionado ? const Color(0xFF007AFF) : Colors.grey.shade300,
+                    color: isSeleccionado
+                        ? const Color(0xFF007AFF)
+                        : Colors.grey.shade300,
                     width: 1.5,
                   ),
                 ),
@@ -448,11 +484,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  // ── BOTÃO CONCLUIR ─────────────────────────────────────────────────────────
   Widget _buildBotaoConcluir() {
     final bool habilitado = _cursoSeleccionado != null && !_isSaving;
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 28),
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       child: SizedBox(
         width: double.infinity,
         height: 54,
@@ -465,18 +502,23 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               backgroundColor: const Color(0xFF007AFF),
               disabledBackgroundColor: const Color(0xFF007AFF),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14)),
               elevation: 0,
             ),
             child: _isSaving
                 ? const SizedBox(
                     width: 22,
                     height: 22,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
+                    child: CircularProgressIndicator(
+                        color: Colors.white, strokeWidth: 2.5),
                   )
                 : const Text(
                     'Começar a estudar',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 0.3),
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.3),
                   ),
           ),
         ),
@@ -484,20 +526,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
+  // ── HELPER: emoji por curso ────────────────────────────────────────────────
   String _iconeCurso(String nomeCurso) {
     final nome = nomeCurso.toLowerCase();
-    if (nome.contains('medicina') || nome.contains('saúde') || nome.contains('enfermagem')) return '🏥';
-    if (nome.contains('direito') || nome.contains('ciências jurídicas')) return '⚖️';
-    if (nome.contains('engenharia') || nome.contains('informática') || nome.contains('tecnologia')) return '💻';
-    if (nome.contains('economia') || nome.contains('gestão') || nome.contains('contabilidade')) return '📊';
-    if (nome.contains('educação') || nome.contains('pedagogia') || nome.contains('ensino')) return '📚';
-    if (nome.contains('arquitectura') || nome.contains('urbanismo')) return '🏛️';
-    if (nome.contains('biologia') || nome.contains('bioquímica')) return '🔬';
+    if (nome.contains('medicina') || nome.contains('enfermagem')) return '🏥';
+    if (nome.contains('direito')) return '⚖️';
+    if (nome.contains('engenharia') || nome.contains('informática')) return '💻';
+    if (nome.contains('economia') || nome.contains('gestão')) return '📊';
+    if (nome.contains('educação') || nome.contains('pedagogia')) return '📚';
+    if (nome.contains('arquitectura')) return '🏛️';
+    if (nome.contains('biologia')) return '🔬';
     if (nome.contains('química') || nome.contains('farmácia')) return '⚗️';
     if (nome.contains('física') || nome.contains('matemática')) return '🔭';
     if (nome.contains('comunicação') || nome.contains('jornalismo')) return '📡';
     if (nome.contains('psicologia')) return '🧠';
-    if (nome.contains('agricultura') || nome.contains('veterinária')) return '🌱';
+    if (nome.contains('agricultura')) return '🌱';
     return '🎓';
   }
 }

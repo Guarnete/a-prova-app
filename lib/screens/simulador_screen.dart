@@ -122,6 +122,136 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
   }
 
   void _finalizarExame() {
+    // Verificar questões por responder
+    final naoRespondidas = <int>[];
+    for (int i = 0; i < _questoes.length; i++) {
+      if (!_respostas.containsKey(i)) naoRespondidas.add(i + 1);
+    }
+
+    // Se há questões por responder e o tempo não esgotou, alertar
+    if (naoRespondidas.isNotEmpty && _timerActivo) {
+      _mostrarDialogQuestoesPorResponder(naoRespondidas);
+      return;
+    }
+
+    _submeterExame();
+  }
+
+  void _mostrarDialogQuestoesPorResponder(List<int> naoRespondidas) {
+    final numerosFormatados = naoRespondidas.join(', ');
+    final totalPorResponder = naoRespondidas.length;
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 64,
+                height: 64,
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.warning_amber_rounded,
+                    color: Colors.orange.shade600, size: 32),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Questões por responder',
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1A1A1A),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Tens $totalPorResponder questão(ões) sem resposta:',
+                style: const TextStyle(fontSize: 13, color: Colors.grey),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              // Lista das questões por responder
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Text(
+                  'Questão(ões) nº $numerosFormatados',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.orange.shade800,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Botão: ir para primeira questão por responder
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    setState(() {
+                      // Navega para a primeira questão por responder
+                      _perguntaActual = naoRespondidas.first - 1;
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF007AFF),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Responder questões em falta',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, color: Colors.white),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              // Botão: submeter mesmo assim
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    _submeterExame();
+                  },
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    side: BorderSide(color: Colors.grey.shade400),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: Text(
+                    'Submeter assim mesmo',
+                    style: TextStyle(
+                        color: Colors.grey.shade600,
+                        fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _submeterExame() {
     _timerActivo = false;
     final tempoGasto = (90 * 60) - _tempoRestante;
     int acertos = 0;
