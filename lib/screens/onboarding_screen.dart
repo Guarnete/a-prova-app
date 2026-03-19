@@ -15,18 +15,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final TextEditingController _pesquisaController = TextEditingController();
 
-  // Controlo de passos: 1 = Instituição, 2 = Curso
   int _passo = 1;
-
-  // Dados carregados do Firestore
   List<Map<String, dynamic>> _instituicoes = [];
   List<Map<String, dynamic>> _cursos = [];
-
-  // Selecções do utilizador
   Map<String, dynamic>? _instituicaoSeleccionada;
   Map<String, dynamic>? _cursoSeleccionado;
-
-  // Estados UI
   bool _isLoadingInstituicoes = true;
   bool _isLoadingCursos = false;
   bool _isSaving = false;
@@ -44,8 +37,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
-  // ─── Carrega todas as instituições do Firestore ───────────────────────────
-
   Future<void> _carregarInstituicoes() async {
     setState(() => _isLoadingInstituicoes = true);
     try {
@@ -61,13 +52,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       });
     } catch (e) {
       setState(() => _isLoadingInstituicoes = false);
-      if (mounted) {
-        _mostrarErro('Erro ao carregar instituições. Verifica a ligação.');
-      }
+      if (mounted) _mostrarErro('Erro ao carregar instituições. Verifica a ligação.');
     }
   }
-
-  // ─── Carrega cursos da instituição seleccionada ───────────────────────────
 
   Future<void> _carregarCursos(String instituicaoId) async {
     setState(() => _isLoadingCursos = true);
@@ -86,13 +73,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       });
     } catch (e) {
       setState(() => _isLoadingCursos = false);
-      if (mounted) {
-        _mostrarErro('Erro ao carregar cursos. Verifica a ligação.');
-      }
+      if (mounted) _mostrarErro('Erro ao carregar cursos. Verifica a ligação.');
     }
   }
-
-  // ─── Seleccionar instituição e avançar para passo 2 ──────────────────────
 
   void _seleccionarInstituicao(Map<String, dynamic> instituicao) {
     setState(() {
@@ -106,13 +89,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     _carregarCursos(instituicao['id']);
   }
 
-  // ─── Seleccionar curso ────────────────────────────────────────────────────
-
   void _seleccionarCurso(Map<String, dynamic> curso) {
     setState(() => _cursoSeleccionado = curso);
   }
-
-  // ─── Voltar ao passo 1 ────────────────────────────────────────────────────
 
   void _voltarParaInstituicoes() {
     setState(() {
@@ -125,17 +104,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     });
   }
 
-  // ─── Guardar no Firebase e navegar para Home ──────────────────────────────
-
   Future<void> _concluirOnboarding() async {
     if (_instituicaoSeleccionada == null || _cursoSeleccionado == null) return;
-
     setState(() => _isSaving = true);
-
     try {
-      // Buscar lista de disciplinas do curso seleccionado
       final disciplinas = _cursoSeleccionado!['disciplinas'] ?? '';
-
       await _authService.adicionarCurso(
         instituicaoId: _instituicaoSeleccionada!['id'],
         instituicaoSigla: _instituicaoSeleccionada!['sigla'] ?? '',
@@ -145,7 +118,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ? disciplinas.join(',')
             : disciplinas.toString(),
       );
-
       if (mounted) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const HomeScreen()),
@@ -154,13 +126,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       }
     } catch (e) {
       setState(() => _isSaving = false);
-      if (mounted) {
-        _mostrarErro('Erro ao guardar perfil. Tenta novamente.');
-      }
+      if (mounted) _mostrarErro('Erro ao guardar perfil. Tenta novamente.');
     }
   }
-
-  // ─── Helper: mostrar erro ─────────────────────────────────────────────────
 
   void _mostrarErro(String mensagem) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -172,8 +140,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // ─── Filtro de pesquisa ───────────────────────────────────────────────────
-
   List<Map<String, dynamic>> get _listaFiltrada {
     final lista = _passo == 1 ? _instituicoes : _cursos;
     if (_pesquisa.isEmpty) return lista;
@@ -183,12 +149,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     }).toList();
   }
 
-  // ─── BUILD ────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF121212),
+      backgroundColor: Colors.white,
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -204,15 +168,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // ─── Header ───────────────────────────────────────────────────────────────
-
   Widget _buildHeader() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Botão voltar (apenas no passo 2)
           if (_passo == 2)
             GestureDetector(
               onTap: _voltarParaInstituicoes,
@@ -233,24 +194,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
           if (_passo == 2) const SizedBox(height: 20),
-
-          // Título
           Text(
-            _passo == 1 ? 'Bem-vindo à A PROVA' : _instituicaoSeleccionada!['sigla'] ?? '',
+            _passo == 1 ? 'BEM-VINDO À A PROVA' : (_instituicaoSeleccionada!['sigla'] ?? '').toString().toUpperCase(),
             style: const TextStyle(
               color: Color(0xFFD4AF37),
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.5,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.8,
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            _passo == 1
-                ? 'Selecciona a tua instituição'
-                : 'Selecciona o teu curso',
+            _passo == 1 ? 'Selecciona a tua\ninstituição' : 'Selecciona o teu curso',
             style: const TextStyle(
-              color: Colors.white,
+              color: Color(0xFF1A1A1A),
               fontSize: 26,
               fontWeight: FontWeight.w700,
               height: 1.2,
@@ -258,21 +215,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            _passo == 1
-                ? 'Onde vais candidatar-te?'
-                : 'Qual é o curso que pretendes?',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.5),
-              fontSize: 15,
-            ),
+            _passo == 1 ? 'Onde vais candidatar-te?' : 'Qual é o curso que pretendes?',
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 15),
           ),
           const SizedBox(height: 28),
         ],
       ),
     );
   }
-
-  // ─── Indicador de passos ──────────────────────────────────────────────────
 
   Widget _buildIndicadorPassos() {
     return Padding(
@@ -282,11 +232,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           _buildPasso(numero: 1, label: 'Instituição', activo: _passo == 1, completo: _passo > 1),
           Expanded(
             child: Container(
-              height: 1,
+              height: 1.5,
               margin: const EdgeInsets.symmetric(horizontal: 8),
-              color: _passo > 1
-                  ? const Color(0xFF007AFF)
-                  : Colors.white.withValues(alpha: 0.15),
+              color: _passo > 1 ? const Color(0xFF007AFF) : Colors.grey.shade200,
             ),
           ),
           _buildPasso(numero: 2, label: 'Curso', activo: _passo == 2, completo: false),
@@ -301,23 +249,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     required bool activo,
     required bool completo,
   }) {
-    final Color corFundo = completo
-        ? const Color(0xFF007AFF)
-        : activo
-            ? const Color(0xFF007AFF)
-            : Colors.white.withValues(alpha: 0.1);
-
-    final Color corTexto = (activo || completo) ? Colors.white : Colors.white.withValues(alpha: 0.4);
+    final Color corFundo = (activo || completo) ? const Color(0xFF007AFF) : Colors.grey.shade200;
+    final Color corTexto = (activo || completo) ? Colors.white : Colors.grey;
 
     return Column(
       children: [
         Container(
           width: 32,
           height: 32,
-          decoration: BoxDecoration(
-            color: corFundo,
-            shape: BoxShape.circle,
-          ),
+          decoration: BoxDecoration(color: corFundo, shape: BoxShape.circle),
           child: Center(
             child: completo
                 ? const Icon(Icons.check, color: Colors.white, size: 16)
@@ -335,7 +275,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         Text(
           label,
           style: TextStyle(
-            color: corTexto,
+            color: (activo || completo) ? const Color(0xFF007AFF) : Colors.grey,
             fontSize: 11,
             fontWeight: activo ? FontWeight.w600 : FontWeight.w400,
           ),
@@ -344,26 +284,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // ─── Barra de pesquisa ────────────────────────────────────────────────────
-
   Widget _buildBarraPesquisa() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
       child: Container(
         height: 48,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.07),
+          color: Colors.grey.shade100,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+          border: Border.all(color: Colors.grey.shade200),
         ),
         child: TextField(
           controller: _pesquisaController,
           onChanged: (v) => setState(() => _pesquisa = v),
-          style: const TextStyle(color: Colors.white, fontSize: 15),
+          style: const TextStyle(color: Color(0xFF1A1A1A), fontSize: 15),
           decoration: InputDecoration(
             hintText: _passo == 1 ? 'Pesquisar instituição...' : 'Pesquisar curso...',
-            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.35), fontSize: 15),
-            prefixIcon: Icon(Icons.search, color: Colors.white.withValues(alpha: 0.35), size: 20),
+            hintStyle: TextStyle(color: Colors.grey.shade400, fontSize: 15),
+            prefixIcon: Icon(Icons.search, color: Colors.grey.shade400, size: 20),
             border: InputBorder.none,
             contentPadding: const EdgeInsets.symmetric(vertical: 14),
           ),
@@ -372,15 +310,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // ─── Lista de itens ───────────────────────────────────────────────────────
-
   Widget _buildLista() {
     final isLoading = _passo == 1 ? _isLoadingInstituicoes : _isLoadingCursos;
 
     if (isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF007AFF)),
-      );
+      return const Center(child: CircularProgressIndicator(color: Color(0xFF007AFF)));
     }
 
     final lista = _listaFiltrada;
@@ -390,11 +324,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.search_off, color: Colors.white.withValues(alpha: 0.2), size: 48),
+            Icon(Icons.search_off, color: Colors.grey.shade300, size: 48),
             const SizedBox(height: 12),
             Text(
               'Nenhum resultado encontrado',
-              style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 15),
+              style: TextStyle(color: Colors.grey.shade400, fontSize: 15),
             ),
           ],
         ),
@@ -413,9 +347,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return _buildItemLista(
           item: item,
           isSeleccionado: isSeleccionado,
-          onTap: () => _passo == 1
-              ? _seleccionarInstituicao(item)
-              : _seleccionarCurso(item),
+          onTap: () => _passo == 1 ? _seleccionarInstituicao(item) : _seleccionarCurso(item),
         );
       },
     );
@@ -426,6 +358,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     required bool isSeleccionado,
     required VoidCallback onTap,
   }) {
+    final sigla = (item['sigla'] ?? '?').toString();
+
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -434,39 +368,32 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
         decoration: BoxDecoration(
           color: isSeleccionado
-              ? const Color(0xFF007AFF).withValues(alpha: 0.15)
-              : Colors.white.withValues(alpha: 0.05),
+              ? const Color(0xFF007AFF).withValues(alpha: 0.06)
+              : Colors.grey.shade50,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSeleccionado
-                ? const Color(0xFF007AFF)
-                : Colors.white.withValues(alpha: 0.08),
+            color: isSeleccionado ? const Color(0xFF007AFF) : Colors.grey.shade200,
             width: isSeleccionado ? 1.5 : 1,
           ),
         ),
         child: Row(
           children: [
-            // Ícone / sigla
             Container(
               width: 44,
               height: 44,
               decoration: BoxDecoration(
                 color: isSeleccionado
-                    ? const Color(0xFF007AFF).withValues(alpha: 0.2)
-                    : Colors.white.withValues(alpha: 0.07),
+                    ? const Color(0xFF007AFF).withValues(alpha: 0.1)
+                    : Colors.grey.shade100,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Center(
                 child: Text(
                   _passo == 1
-                      ? (item['sigla'] ?? '?').toString().substring(0, 
-                          (item['sigla'] ?? '?').toString().length > 3 ? 3 : 
-                          (item['sigla'] ?? '?').toString().length)
+                      ? sigla.substring(0, sigla.length > 3 ? 3 : sigla.length)
                       : _iconeCurso(item['nome'] ?? ''),
                   style: TextStyle(
-                    color: isSeleccionado
-                        ? const Color(0xFF007AFF)
-                        : Colors.white.withValues(alpha: 0.6),
+                    color: isSeleccionado ? const Color(0xFF007AFF) : Colors.grey.shade600,
                     fontWeight: FontWeight.w700,
                     fontSize: _passo == 1 ? 11 : 18,
                   ),
@@ -474,8 +401,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
             const SizedBox(width: 14),
-
-            // Nome
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -483,7 +408,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Text(
                     item['nome'] ?? '',
                     style: TextStyle(
-                      color: isSeleccionado ? Colors.white : Colors.white.withValues(alpha: 0.85),
+                      color: isSeleccionado ? const Color(0xFF007AFF) : const Color(0xFF1A1A1A),
                       fontSize: 15,
                       fontWeight: isSeleccionado ? FontWeight.w600 : FontWeight.w400,
                     ),
@@ -492,19 +417,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     const SizedBox(height: 2),
                     Text(
                       item['cidade'],
-                      style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.4),
-                        fontSize: 12,
-                      ),
+                      style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
                     ),
                   ],
                 ],
               ),
             ),
-
-            // Indicador de selecção (passo 2) ou seta (passo 1)
             if (_passo == 1)
-              Icon(Icons.chevron_right, color: Colors.white.withValues(alpha: 0.3), size: 20)
+              Icon(Icons.chevron_right, color: Colors.grey.shade400, size: 20)
             else
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -514,9 +434,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   shape: BoxShape.circle,
                   color: isSeleccionado ? const Color(0xFF007AFF) : Colors.transparent,
                   border: Border.all(
-                    color: isSeleccionado
-                        ? const Color(0xFF007AFF)
-                        : Colors.white.withValues(alpha: 0.3),
+                    color: isSeleccionado ? const Color(0xFF007AFF) : Colors.grey.shade300,
                     width: 1.5,
                   ),
                 ),
@@ -529,8 +447,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       ),
     );
   }
-
-  // ─── Botão Começar (passo 2) ──────────────────────────────────────────────
 
   Widget _buildBotaoConcluir() {
     final bool habilitado = _cursoSeleccionado != null && !_isSaving;
@@ -549,35 +465,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               backgroundColor: const Color(0xFF007AFF),
               disabledBackgroundColor: const Color(0xFF007AFF),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               elevation: 0,
             ),
             child: _isSaving
                 ? const SizedBox(
                     width: 22,
                     height: 22,
-                    child: CircularProgressIndicator(
-                      color: Colors.white,
-                      strokeWidth: 2.5,
-                    ),
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                   )
                 : const Text(
                     'Começar a estudar',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.3,
-                    ),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 0.3),
                   ),
           ),
         ),
       ),
     );
   }
-
-  // ─── Helper: emoji por área de curso ─────────────────────────────────────
 
   String _iconeCurso(String nomeCurso) {
     final nome = nomeCurso.toLowerCase();
@@ -590,9 +495,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     if (nome.contains('biologia') || nome.contains('bioquímica')) return '🔬';
     if (nome.contains('química') || nome.contains('farmácia')) return '⚗️';
     if (nome.contains('física') || nome.contains('matemática')) return '🔭';
-    if (nome.contains('comunicação') || nome.contains('jornalismo') || nome.contains('relações')) return '📡';
+    if (nome.contains('comunicação') || nome.contains('jornalismo')) return '📡';
     if (nome.contains('psicologia')) return '🧠';
-    if (nome.contains('agricultura') || nome.contains('veterinária') || nome.contains('zootecnia')) return '🌱';
+    if (nome.contains('agricultura') || nome.contains('veterinária')) return '🌱';
     return '🎓';
   }
 }

@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
-import 'instituicoes_screen.dart';
+import 'anos_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -13,28 +12,77 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _authService = AuthService();
+
   String _nomeUtilizador = '';
   String _iniciaisUtilizador = '';
-  final String _plano = 'Plano Gratuito';
+  String _plano = 'Gratuito';
+  String _instituicaoSigla = '';
+  String _cursoNome = '';
+  String _instituicaoId = '';
+  String _disciplinas = '';
+  bool _carregando = true;
 
   @override
   void initState() {
     super.initState();
-    _carregarDadosUtilizador();
+    _carregarPerfil();
   }
 
-  void _carregarDadosUtilizador() {
-    final User? user = _authService.currentUser;
-    if (user != null) {
-      final nome = user.displayName ?? 'Estudante';
+  Future<void> _carregarPerfil() async {
+    setState(() => _carregando = true);
+    try {
+      final perfil = await _authService.carregarPerfil();
+      if (perfil == null) return;
+
+      final nome = perfil['nome'] ?? 'Estudante';
       final partes = nome.split(' ');
       final iniciais = partes.length >= 2
           ? '${partes[0][0]}${partes[1][0]}'.toUpperCase()
           : nome[0].toUpperCase();
-      setState(() {
-        _nomeUtilizador = nome;
-        _iniciaisUtilizador = iniciais;
-      });
+
+      final cursos = List<Map<String, dynamic>>.from(
+        (perfil['cursos'] as List<dynamic>? ?? [])
+            .map((c) => Map<String, dynamic>.from(c)),
+      );
+
+      String plano = 'Gratuito';
+      String instituicaoSigla = '';
+      String cursoNome = '';
+      String instituicaoId = '';
+      String disciplinas = '';
+
+      if (cursos.isNotEmpty) {
+        final cursoActivo = cursos.first;
+        plano = _formatarPlano(cursoActivo['plano'] ?? 'gratuito');
+        instituicaoSigla = cursoActivo['instituicaoSigla'] ?? '';
+        cursoNome = cursoActivo['cursoNome'] ?? '';
+        instituicaoId = cursoActivo['instituicaoId'] ?? '';
+        disciplinas = cursoActivo['disciplinas'] ?? '';
+      }
+
+      if (mounted) {
+        setState(() {
+          _nomeUtilizador = nome;
+          _iniciaisUtilizador = iniciais;
+          _plano = plano;
+          _instituicaoSigla = instituicaoSigla;
+          _cursoNome = cursoNome;
+          _instituicaoId = instituicaoId;
+          _disciplinas = disciplinas;
+          _carregando = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
+
+  String _formatarPlano(String plano) {
+    switch (plano) {
+      case 'prata': return 'Plano Prata';
+      case 'ouro': return 'Plano Ouro';
+      case 'diamante': return 'Plano Diamante';
+      default: return 'Plano Gratuito';
     }
   }
 
@@ -43,6 +91,39 @@ class _HomeScreenState extends State<HomeScreen> {
     if (hora < 12) return 'Bom dia,';
     if (hora < 18) return 'Boa tarde,';
     return 'Boa noite,';
+  }
+
+  void _irParaAvaliacaoPreditiva() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Avaliação Preditiva — em breve!'),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: Color(0xFF007AFF),
+      ),
+    );
+  }
+
+  void _irParaExame() {
+    if (_instituicaoId.isEmpty || _cursoNome.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Nenhum curso activo. Completa o onboarding.'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => AnosScreen(
+          instituicaoId: _instituicaoId,
+          instituicaoSigla: _instituicaoSigla,
+          cursoNome: _cursoNome,
+          disciplinas: _disciplinas,
+        ),
+      ),
+    );
   }
 
   Future<void> _logout() async {
@@ -61,7 +142,8 @@ class _HomeScreenState extends State<HomeScreen> {
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.red,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
             ),
             child: const Text('Sair', style: TextStyle(color: Colors.white)),
           ),
@@ -73,13 +155,22 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!mounted) return;
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const LoginScreen()),
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
       );
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_carregando) {
+      return const Scaffold(
+        backgroundColor: Color(0xFFF5F7FA),
+        body: Center(
+          child: CircularProgressIndicator(color: Color(0xFF007AFF)),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       body: SafeArea(
@@ -88,7 +179,7 @@ class _HomeScreenState extends State<HomeScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
 
-              // HEADER AZUL
+              // ── HEADER ─────────────────────────────────────────────────
               Container(
                 width: double.infinity,
                 color: const Color(0xFF007AFF),
@@ -96,47 +187,68 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _saudacao(),
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _saudacao(),
+                            style: const TextStyle(
+                                color: Colors.white70, fontSize: 14),
                           ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          _nomeUtilizador,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.white24,
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Text(
-                            _plano,
+                          const SizedBox(height: 4),
+                          Text(
+                            _nomeUtilizador,
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 11,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 6),
+                          if (_cursoNome.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Text(
+                                '$_instituicaoSigla · $_cursoNome',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          const SizedBox(height: 4),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 10, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              _plano,
+                              style: const TextStyle(
+                                  color: Colors.white, fontSize: 11),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                    const SizedBox(width: 12),
                     GestureDetector(
                       onTap: _logout,
                       child: CircleAvatar(
                         radius: 24,
-                        backgroundColor: Colors.white24,
+                        backgroundColor:
+                            Colors.white.withValues(alpha: 0.25),
                         child: Text(
                           _iniciaisUtilizador,
                           style: const TextStyle(
@@ -151,7 +263,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              // PROGRESSO
+              // ── PROGRESSO ──────────────────────────────────────────────
               Container(
                 margin: const EdgeInsets.all(16),
                 padding: const EdgeInsets.all(16),
@@ -175,7 +287,8 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: const Color(0xFFE6F1FB),
                             borderRadius: BorderRadius.circular(20),
@@ -198,19 +311,20 @@ class _HomeScreenState extends State<HomeScreen> {
                         value: 0.0,
                         minHeight: 8,
                         backgroundColor: Colors.grey.shade200,
-                        valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF007AFF)),
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF007AFF)),
                       ),
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      '0 de 40.000 questões completadas',
+                      '0 simulações completadas',
                       style: TextStyle(fontSize: 12, color: Colors.grey),
                     ),
                   ],
                 ),
               ),
 
-              // TÍTULO SECÇÃO
+              // ── ACESSO RÁPIDO ───────────────────────────────────────────
               const Padding(
                 padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
                 child: Text(
@@ -223,24 +337,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ),
 
-              // BOTÕES ESTUDAR + SIMULAR EXAME
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
                     Expanded(
                       child: _BotaoAcesso(
-                        icone: Icons.edit_note,
-                        titulo: 'Estudar',
-                        subtitulo: 'Praticar questões',
-                        aoTapar: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const InstituicoesScreen(),
-                            ),
-                          );
-                        },
+                        icone: Icons.track_changes,
+                        titulo: 'Avaliação Preditiva',
+                        subtitulo: 'Exame gerado por IA',
+                        aoTapar: _irParaAvaliacaoPreditiva,
                       ),
                     ),
                     const SizedBox(width: 12),
@@ -248,15 +354,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: _BotaoAcesso(
                         icone: Icons.laptop_mac,
                         titulo: 'Simular Exame',
-                        subtitulo: 'Teste completo',
-                        aoTapar: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const InstituicoesScreen(),
-                            ),
-                          );
-                        },
+                        subtitulo: 'Exames reais anteriores',
+                        aoTapar: _irParaExame,
                       ),
                     ),
                   ],
@@ -264,7 +363,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 12),
 
-              // BOTÃO VER RESULTADOS
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: _BotaoAcessoLargo(
@@ -276,7 +374,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 12),
 
-              // BOTÃO MESTRE AI
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
                 child: GestureDetector(
@@ -293,14 +390,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           width: 48,
                           height: 48,
                           decoration: BoxDecoration(
-                            color: Colors.white24,
+                            color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(24),
                           ),
-                          child: const Icon(
-                            Icons.auto_awesome,
-                            color: Colors.white,
-                            size: 24,
-                          ),
+                          child: const Icon(Icons.auto_awesome,
+                              color: Colors.white, size: 24),
                         ),
                         const SizedBox(width: 14),
                         const Expanded(
@@ -319,18 +413,13 @@ class _HomeScreenState extends State<HomeScreen> {
                               Text(
                                 'Estuda com inteligência artificial',
                                 style: TextStyle(
-                                  color: Colors.white70,
-                                  fontSize: 12,
-                                ),
+                                    color: Colors.white70, fontSize: 12),
                               ),
                             ],
                           ),
                         ),
-                        const Icon(
-                          Icons.arrow_forward_ios,
-                          color: Colors.white70,
-                          size: 16,
-                        ),
+                        const Icon(Icons.arrow_forward_ios,
+                            color: Colors.white70, size: 16),
                       ],
                     ),
                   ),
@@ -344,7 +433,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// WIDGET: Botão de acesso rápido (quadrado)
+// ── Botão quadrado ───────────────────────────────────────────────────────────
 class _BotaoAcesso extends StatelessWidget {
   final IconData icone;
   final String titulo;
@@ -388,6 +477,7 @@ class _BotaoAcesso extends StatelessWidget {
                 fontSize: 13,
                 color: Color(0xFF1A1A1A),
               ),
+              textAlign: TextAlign.center,
             ),
             const SizedBox(height: 3),
             Text(
@@ -402,7 +492,7 @@ class _BotaoAcesso extends StatelessWidget {
   }
 }
 
-// WIDGET: Botão de acesso rápido (largo)
+// ── Botão largo ──────────────────────────────────────────────────────────────
 class _BotaoAcessoLargo extends StatelessWidget {
   final IconData icone;
   final String titulo;
