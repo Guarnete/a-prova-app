@@ -207,6 +207,24 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
             const SizedBox(height: 12),
           ],
+          // Botão fechar (apenas em modo adicionar, passo 1)
+          if (_passo == 1 && widget.modoAdicionar) ...[
+            Align(
+              alignment: Alignment.topRight,
+              child: GestureDetector(
+                onTap: () => Navigator.pop(context),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.close, color: Colors.white, size: 18),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           Text(
             _passo == 1
                 ? (widget.modoAdicionar ? 'ADICIONAR CURSO' : 'BEM-VINDO À A PROVA')
