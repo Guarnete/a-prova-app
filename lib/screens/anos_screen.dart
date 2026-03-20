@@ -73,33 +73,24 @@ class _AnosScreenState extends State<AnosScreen> {
   // Carrega anos do Firestore: instituicoes/{id}/cursos/{cursoId}/anos
   Future<void> _carregarAnos() async {
     try {
-      // Encontra o documento do curso dentro da instituição
-      final cursosSnapshot = await _firestore
-          .collection('instituicoes')
-          .doc(widget.instituicaoId)
-          .collection('cursos')
-          .where('nome', isEqualTo: widget.cursoNome)
-          .limit(1)
-          .get();
-
-      if (cursosSnapshot.docs.isEmpty) return;
-
-      final cursoId = cursosSnapshot.docs.first.id;
-
-      // Carrega os anos activos ordenados
       final anosSnapshot = await _firestore
           .collection('instituicoes')
           .doc(widget.instituicaoId)
           .collection('cursos')
-          .doc(cursoId)
+          .doc(widget.cursoNome.toLowerCase().replaceAll(' ', '-'))
           .collection('anos')
-          .where('activo', isEqualTo: true)
-          .orderBy('ano')
           .get();
 
-      final anos = anosSnapshot.docs.map((doc) {
-        final data = doc.data();
-        return {
+      final todosAnos = anosSnapshot.docs
+          .map((doc) => doc.data())
+          .where((data) => data['activo'] == true)
+          .toList();
+
+      todosAnos.sort(
+          (a, b) => (a['ano'] as int).compareTo(b['ano'] as int));
+
+      final anos = todosAnos.map((data) {
+        return <String, dynamic>{
           'ano': data['ano'] as int,
           'planoMinimo': data['planoMinimo'] as String? ?? 'gratuito',
         };
@@ -107,7 +98,6 @@ class _AnosScreenState extends State<AnosScreen> {
 
       if (mounted) setState(() => _anosDisponiveis = anos);
     } catch (e) {
-      // Se não há anos no Firestore, mostra lista vazia
       if (mounted) setState(() => _anosDisponiveis = []);
     }
   }
@@ -337,6 +327,7 @@ class _AnosScreenState extends State<AnosScreen> {
                       context,
                       MaterialPageRoute(
                         builder: (_) => DisciplinasScreen(
+                          instituicaoId: widget.instituicaoId,
                           instituicaoSigla: widget.instituicaoSigla,
                           cursoNome: widget.cursoNome,
                           ano: ano,

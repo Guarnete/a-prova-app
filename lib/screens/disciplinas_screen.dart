@@ -4,6 +4,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'simulador_screen.dart';
 
 class DisciplinasScreen extends StatefulWidget {
+  final String instituicaoId;
   final String instituicaoSigla;
   final String cursoNome;
   final int ano;
@@ -11,6 +12,7 @@ class DisciplinasScreen extends StatefulWidget {
 
   const DisciplinasScreen({
     super.key,
+    required this.instituicaoId,
     required this.instituicaoSigla,
     required this.cursoNome,
     required this.ano,
@@ -223,10 +225,12 @@ class _DisciplinasScreenState extends State<DisciplinasScreen> {
                 context,
                 MaterialPageRoute(
                   builder: (_) => SimuladorScreen(
+                    instituicaoId: widget.instituicaoId,
                     instituicaoSigla: widget.instituicaoSigla,
                     cursoNome: widget.cursoNome,
                     ano: widget.ano,
                     disciplina: disciplina,
+                    todasDisciplinas: widget.disciplinas,
                   ),
                 ),
               ).then((_) => _carregarResultados()); // Recarrega após voltar

@@ -131,7 +131,6 @@ class AuthService {
     return cursos.map((c) => Map<String, dynamic>.from(c)).toList();
   }
 
-  // GUARDAR RESULTADO DE EXAME
   Future<void> guardarResultado({
     required String instituicaoId,
     required String cursoNome,
@@ -144,6 +143,8 @@ class AuthService {
   }) async {
     final user = currentUser;
     if (user == null) return;
+
+    // Guarda na sub-colecção de resultados
     await _firestore
         .collection('utilizadores')
         .doc(user.uid)
@@ -160,6 +161,72 @@ class AuthService {
       'aprovado': nota >= 13,
       'data': FieldValue.serverTimestamp(),
     });
+
+    // Actualiza progressoAnos e melhorNota por disciplina no perfil
+    final docRef = _firestore.collection('utilizadores').doc(user.uid);
+    final doc = await docRef.get();
+    final dados = doc.data();
+    if (dados == null) return;
+
+    final cursos = List<Map<String, dynamic>>.from(
+      (dados['cursos'] as List<dynamic>? ?? [])
+          .map((c) => Map<String, dynamic>.from(c)),
+    );
+
+    final idx = cursos.indexWhere(
+      (c) =>
+          c['instituicaoId'] == instituicaoId &&
+          c['cursoNome'] == cursoNome,
+    );
+    if (idx == -1) return;
+
+    // Actualiza progressoAnos/{ano}/disciplinas/{disciplina}
+    final progressoAnos = Map<String, dynamic>.from(
+      cursos[idx]['progressoAnos'] ?? {},
+    );
+    final progressoAno = Map<String, dynamic>.from(
+      progressoAnos[ano.toString()] ?? {},
+    );
+    final disciplinas = Map<String, dynamic>.from(
+      progressoAno['disciplinas'] ?? {},
+    );
+
+    // Guarda melhor nota por disciplina
+    final notaAnterior =
+        (disciplinas[disciplina]?['melhorNota'] ?? 0).toDouble();
+    if (nota > notaAnterior) {
+      disciplinas[disciplina] = {
+        'melhorNota': nota,
+        'tentativas':
+            ((disciplinas[disciplina]?['tentativas'] ?? 0) as int) + 1,
+        'aprovado': nota >= 13,
+      };
+    } else {
+      disciplinas[disciplina] = {
+        'melhorNota': notaAnterior,
+        'tentativas':
+            ((disciplinas[disciplina]?['tentativas'] ?? 0) as int) + 1,
+        'aprovado': notaAnterior >= 13,
+      };
+    }
+
+    progressoAno['disciplinas'] = disciplinas;
+    progressoAno['tentativas'] =
+        ((progressoAno['tentativas'] ?? 0) as int) + 1;
+
+    // Melhor nota do ano = média das disciplinas aprovadas
+    final todasNotas = disciplinas.values
+        .map((d) => (d['melhorNota'] ?? 0).toDouble())
+        .toList();
+    if (todasNotas.isNotEmpty) {
+      progressoAno['melhorNota'] =
+          todasNotas.reduce((a, b) => a + b) / todasNotas.length;
+    }
+
+    progressoAnos[ano.toString()] = progressoAno;
+    cursos[idx]['progressoAnos'] = progressoAnos;
+
+    await docRef.update({'cursos': cursos});
   }
 
   // GUARDAR RESULTADO NO RANKING GLOBAL

@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/auth_service.dart';
 import 'home_screen.dart';
+import 'simulador_screen.dart';
+import 'anos_screen.dart';
 
 class ResultadoScreen extends StatefulWidget {
+  final String instituicaoId;
   final String instituicaoSigla;
   final String cursoNome;
   final int ano;
   final String disciplina;
+  final String todasDisciplinas;
   final double nota;
   final int acertos;
   final int total;
@@ -17,10 +22,12 @@ class ResultadoScreen extends StatefulWidget {
 
   const ResultadoScreen({
     super.key,
+    required this.instituicaoId,
     required this.instituicaoSigla,
     required this.cursoNome,
     required this.ano,
     required this.disciplina,
+    required this.todasDisciplinas,
     required this.nota,
     required this.acertos,
     required this.total,
@@ -36,8 +43,10 @@ class ResultadoScreen extends StatefulWidget {
 class _ResultadoScreenState extends State<ResultadoScreen> {
   final _firestore = FirebaseFirestore.instance;
   final _auth = FirebaseAuth.instance;
+  final _authService = AuthService();
 
   String _planoUtilizador = 'gratuito';
+  Map<String, dynamic> _progressoAnos = {};
   bool _carregando = true;
   bool _mostrarCorreccao = false;
 
@@ -49,16 +58,70 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
     'diamante': 4,
   };
 
-  bool get _aprovado => widget.nota >= 13;
-  bool get _temAcessoCorreccao => _hierarquiaPlanos[_planoUtilizador]! >= 1;
+  bool get _temAcessoCorreccao =>
+      (_hierarquiaPlanos[_planoUtilizador] ?? 0) >= 1;
+
+  bool get _planoPago =>
+      (_hierarquiaPlanos[_planoUtilizador] ?? 0) >= 1;
+
+  // Lista de disciplinas do ano
+  List<String> get _listaDisciplinas =>
+      widget.todasDisciplinas.split(',').map((d) => d.trim()).toList();
+
+  // Verifica se todas as disciplinas do ano têm nota ≥ 13
+  bool get _todasDisciplinasAprovadas {
+    final progressoAno = _progressoAnos[widget.ano.toString()]
+        as Map<String, dynamic>?;
+    if (progressoAno == null) return false;
+    final disciplinas = Map<String, dynamic>.from(
+        progressoAno['disciplinas'] ?? {});
+    for (final d in _listaDisciplinas) {
+      final notaD =
+          (disciplinas[d]?['melhorNota'] ?? 0).toDouble();
+      if (notaD < 13) return false;
+    }
+    return true;
+  }
+
+  // Próxima disciplina sem nota ≥ 13
+  String? get _proximaDisciplinaPendente {
+    final progressoAno = _progressoAnos[widget.ano.toString()]
+        as Map<String, dynamic>?;
+    final disciplinas = Map<String, dynamic>.from(
+        progressoAno?['disciplinas'] ?? {});
+
+    for (final d in _listaDisciplinas) {
+      if (d == widget.disciplina) continue;
+      final notaD =
+          (disciplinas[d]?['melhorNota'] ?? 0).toDouble();
+      if (notaD < 13) return d;
+    }
+    return null;
+  }
 
   @override
   void initState() {
     super.initState();
-    _carregarPlano();
+    _inicializar();
   }
 
-  Future<void> _carregarPlano() async {
+  Future<void> _inicializar() async {
+    // Primeiro guarda o resultado
+    await _authService.guardarResultado(
+      instituicaoId: widget.instituicaoId,
+      cursoNome: widget.cursoNome,
+      ano: widget.ano,
+      disciplina: widget.disciplina,
+      nota: widget.nota,
+      acertos: widget.acertos,
+      total: widget.total,
+      tempoGasto: widget.tempoGasto,
+    );
+    // Depois carrega o perfil actualizado
+    await _carregarPerfil();
+  }
+
+  Future<void> _carregarPerfil() async {
     try {
       final uid = _auth.currentUser?.uid;
       if (uid == null) return;
@@ -74,13 +137,17 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
       );
 
       final cursoActivo = cursos.firstWhere(
-        (c) => c['cursoNome'] == widget.cursoNome,
+        (c) =>
+            c['instituicaoId'] == widget.instituicaoId &&
+            c['cursoNome'] == widget.cursoNome,
         orElse: () => {},
       );
 
       if (mounted) {
         setState(() {
           _planoUtilizador = cursoActivo['plano'] ?? 'gratuito';
+          _progressoAnos = Map<String, dynamic>.from(
+              cursoActivo['progressoAnos'] ?? {});
           _carregando = false;
         });
       }
@@ -97,17 +164,27 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
     return '${m}min ${s}s';
   }
 
-  // Cor do header baseada na nota
+  // Cor e status baseados na nota
   Color get _corHeader {
     if (widget.nota >= 16) return const Color(0xFFD4AF37);
-    if (widget.nota >= 13) return Colors.green.shade600;
+    if (widget.nota >= 10) return Colors.green.shade600;
     return Colors.red.shade600;
   }
 
-  String get _textoResultado {
+  String get _textoStatus {
     if (widget.nota >= 16) return 'EXCELENTE ⭐';
-    if (widget.nota >= 13) return 'APROVADO ✓';
+    if (widget.nota >= 10) return 'APROVADO ✓';
     return 'REPROVADO ✗';
+  }
+
+  String get _mensagemMotivacional {
+    if (widget.nota >= 16) {
+      return 'Estás quase preparado! Realiza os exames dos anos seguintes para confirmar se estás pronto.';
+    }
+    if (widget.nota >= 10) {
+      return 'Estás no caminho certo, continua assim!';
+    }
+    return 'Estuda com mais frequência e tira as tuas dúvidas com o Mestre A PROVA AI.';
   }
 
   @override
@@ -122,7 +199,8 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
             if (_carregando)
               const Expanded(
                 child: Center(
-                  child: CircularProgressIndicator(color: Color(0xFF007AFF)),
+                  child:
+                      CircularProgressIndicator(color: Color(0xFF007AFF)),
                 ),
               )
             else if (_mostrarCorreccao)
@@ -136,7 +214,7 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
     );
   }
 
-  // ── HEADER ──────────────────────────────────────────────────────────────────
+  // ── HEADER ──────────────────────────────────────────────────────────────
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
@@ -145,7 +223,11 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
       child: Column(
         children: [
           Text(
-            widget.nota >= 16 ? '🏆' : widget.nota >= 13 ? '🎉' : '😔',
+            widget.nota >= 16
+                ? '🏆'
+                : widget.nota >= 10
+                    ? '🎉'
+                    : '😔',
             style: const TextStyle(fontSize: 44),
           ),
           const SizedBox(height: 8),
@@ -166,7 +248,7 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              _textoResultado,
+              _textoStatus,
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
@@ -184,7 +266,7 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
     );
   }
 
-  // ── MÉTRICAS ─────────────────────────────────────────────────────────────────
+  // ── MÉTRICAS ─────────────────────────────────────────────────────────────
   Widget _buildMetricas() {
     return Container(
       color: Colors.white,
@@ -222,14 +304,65 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
     );
   }
 
-  // ── RESUMO (sem correcção) ───────────────────────────────────────────────────
+  // ── RESUMO ───────────────────────────────────────────────────────────────
   Widget _buildResumo() {
     return Expanded(
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Card de acesso à correcção
+            // Mensagem motivacional
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: _corHeader.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(16),
+                border:
+                    Border.all(color: _corHeader.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    widget.nota >= 16
+                        ? Icons.emoji_events
+                        : widget.nota >= 10
+                            ? Icons.thumb_up
+                            : Icons.auto_awesome,
+                    color: _corHeader,
+                    size: 28,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _mensagemMotivacional,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _corHeader,
+                        height: 1.4,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Botão: próxima disciplina pendente
+            if (widget.nota >= 13 && _proximaDisciplinaPendente != null)
+              _buildBotaoProximaDisciplina(),
+
+            // Botão: desafie o ano seguinte
+            if (_todasDisciplinasAprovadas) ...[
+              const SizedBox(height: 12),
+              _buildBotaoAnoSeguinte(),
+            ],
+
+            const SizedBox(height: 12),
+
+            // Correcção detalhada
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(20),
@@ -241,42 +374,41 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
               child: Column(
                 children: [
                   Icon(
-                    _temAcessoCorreccao
-                        ? Icons.menu_book
-                        : Icons.lock,
+                    _temAcessoCorreccao ? Icons.menu_book : Icons.lock,
                     color: _temAcessoCorreccao
                         ? const Color(0xFF007AFF)
                         : Colors.grey,
-                    size: 40,
+                    size: 36,
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 10),
                   Text(
                     _temAcessoCorreccao
                         ? 'Correcção detalhada disponível'
                         : 'Correcção detalhada bloqueada',
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: 14,
                       fontWeight: FontWeight.bold,
                       color: _temAcessoCorreccao
                           ? const Color(0xFF1A1A1A)
                           : Colors.grey,
                     ),
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Text(
                     _temAcessoCorreccao
                         ? 'Vê a resolução passo-a-passo de cada questão.'
-                        : 'Faz upgrade para Bronze, Prata ou Ouro para aceder à correcção detalhada com resolução passo-a-passo.',
+                        : 'Disponível nos planos Bronze, Prata, Ouro e Diamante.',
                     style: const TextStyle(
-                        fontSize: 13, color: Colors.grey, height: 1.4),
+                        fontSize: 12, color: Colors.grey, height: 1.4),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton.icon(
                       onPressed: _temAcessoCorreccao
-                          ? () => setState(() => _mostrarCorreccao = true)
+                          ? () =>
+                              setState(() => _mostrarCorreccao = true)
                           : _mostrarDialogUpgrade,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _temAcessoCorreccao
@@ -310,65 +442,184 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
                 ],
               ),
             ),
-
-            // Mensagem motivacional
-            const SizedBox(height: 16),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.grey.shade200),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'O que fazer a seguir?',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14,
-                      color: Color(0xFF1A1A1A),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  _aprovado
-                      ? _ItemSeguinte(
-                          icone: Icons.arrow_upward,
-                          cor: Colors.green,
-                          texto: _aprovado
-                              ? 'Avança para o próximo ano de exame!'
-                              : 'Continua a treinar para melhorar.',
-                        )
-                      : _ItemSeguinte(
-                          icone: Icons.refresh,
-                          cor: Colors.orange,
-                          texto:
-                              'Repete este exame para melhorar a nota.',
-                        ),
-                  const SizedBox(height: 8),
-                  const _ItemSeguinte(
-                    icone: Icons.auto_awesome,
-                    cor: Color(0xFF007AFF),
-                    texto: 'Usa o Mestre IA para esclarecer dúvidas.',
-                  ),
-                ],
-              ),
-            ),
           ],
         ),
       ),
     );
   }
 
-  // ── CORRECÇÃO DETALHADA ──────────────────────────────────────────────────────
+  // ── BOTÃO PRÓXIMA DISCIPLINA ─────────────────────────────────────────────
+  Widget _buildBotaoProximaDisciplina() {
+    final proxima = _proximaDisciplinaPendente!;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF007AFF).withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFE6F1FB),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+                child: const Icon(Icons.arrow_forward,
+                    color: Color(0xFF007AFF), size: 18),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Continua o teu progresso!',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Color(0xFF1A1A1A),
+                      ),
+                    ),
+                    Text(
+                      'Próxima disciplina pendente: $proxima',
+                      style: const TextStyle(
+                          fontSize: 12, color: Colors.grey),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => SimuladorScreen(
+                      instituicaoId: widget.instituicaoId,
+                      instituicaoSigla: widget.instituicaoSigla,
+                      cursoNome: widget.cursoNome,
+                      ano: widget.ano,
+                      disciplina: proxima,
+                      todasDisciplinas: widget.todasDisciplinas,
+                    ),
+                  ),
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF007AFF),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              child: Text(
+                'Iniciar $proxima',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── BOTÃO ANO SEGUINTE ───────────────────────────────────────────────────
+  Widget _buildBotaoAnoSeguinte() {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFFD4AF37).withValues(alpha: 0.8),
+            const Color(0xFFD4AF37),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            '🏆',
+            style: TextStyle(fontSize: 32),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            'Parabéns! Completaste todos os exames deste ano!',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 14,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Todas as disciplinas com nota ≥ 13',
+            style: TextStyle(color: Colors.white70, fontSize: 12),
+          ),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _planoPago
+                  ? () {
+                      Navigator.pushAndRemoveUntil(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AnosScreen(
+                            instituicaoId: widget.instituicaoId,
+                            instituicaoSigla: widget.instituicaoSigla,
+                            cursoNome: widget.cursoNome,
+                            disciplinas: widget.todasDisciplinas,
+                          ),
+                        ),
+                        (route) => route.isFirst,
+                      );
+                    }
+                  : _mostrarDialogUpgrade,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12)),
+                elevation: 0,
+              ),
+              child: Text(
+                _planoPago
+                    ? 'Desafie o ano seguinte! 🚀'
+                    : '🔒 Fazer Upgrade para avançar',
+                style: const TextStyle(
+                  color: Color(0xFFD4AF37),
+                  fontWeight: FontWeight.bold,
+                  fontSize: 15,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── CORRECÇÃO DETALHADA ──────────────────────────────────────────────────
   Widget _buildCorreccaoDetalhada() {
     return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Cabeçalho da correcção
           Container(
             color: Colors.white,
             padding:
@@ -376,7 +627,8 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
             child: Row(
               children: [
                 GestureDetector(
-                  onTap: () => setState(() => _mostrarCorreccao = false),
+                  onTap: () =>
+                      setState(() => _mostrarCorreccao = false),
                   child: const Row(
                     children: [
                       Icon(Icons.arrow_back_ios,
@@ -404,8 +656,6 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
               ],
             ),
           ),
-
-          // Lista de questões
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
@@ -435,7 +685,6 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Cabeçalho questão
                       Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
@@ -453,8 +702,9 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
                               acertou
                                   ? Icons.check_circle
                                   : Icons.cancel,
-                              color:
-                                  acertou ? Colors.green : Colors.red,
+                              color: acertou
+                                  ? Colors.green
+                                  : Colors.red,
                               size: 18,
                             ),
                             const SizedBox(width: 8),
@@ -482,13 +732,11 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
                           ],
                         ),
                       ),
-
                       Padding(
                         padding: const EdgeInsets.all(14),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            // Enunciado
                             Text(
                               questao['texto'] as String,
                               style: const TextStyle(
@@ -499,14 +747,10 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
                               ),
                             ),
                             const SizedBox(height: 12),
-
-                            // Resposta correcta
                             _RespostaItem(
                               texto: opcoes[respostaCorrecta].toString(),
                               tipo: _TipoResposta.correcta,
                             ),
-
-                            // Resposta do utilizador (se errou)
                             if (!acertou &&
                                 respostaUtilizador != null) ...[
                               const SizedBox(height: 6),
@@ -516,27 +760,20 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
                                 tipo: _TipoResposta.errada,
                               ),
                             ],
-
-                            // Sem resposta
                             if (respostaUtilizador == null) ...[
                               const SizedBox(height: 6),
-                              _RespostaItem(
+                              const _RespostaItem(
                                 texto: 'Não respondida',
                                 tipo: _TipoResposta.semResposta,
                               ),
                             ],
-
                             const SizedBox(height: 10),
-
-                            // Justificação
                             _BlocoExplicacao(
                               icone: Icons.info_outline,
                               cor: const Color(0xFF007AFF),
                               titulo: 'Explicação',
                               texto: justificacao,
                             ),
-
-                            // Resolução passo-a-passo (se diferente)
                             if (resolucao.isNotEmpty &&
                                 resolucao != justificacao) ...[
                               const SizedBox(height: 8),
@@ -561,7 +798,7 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
     );
   }
 
-  // ── BOTÕES ───────────────────────────────────────────────────────────────────
+  // ── BOTÕES FOOTER ────────────────────────────────────────────────────────
   Widget _buildBotoes() {
     return Container(
       color: Colors.white,
@@ -634,7 +871,8 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
                 width: 64,
                 height: 64,
                 decoration: BoxDecoration(
-                  color: const Color(0xFFD4AF37).withValues(alpha: 0.1),
+                  color:
+                      const Color(0xFFD4AF37).withValues(alpha: 0.1),
                   shape: BoxShape.circle,
                 ),
                 child: const Icon(Icons.lock,
@@ -642,7 +880,7 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
               ),
               const SizedBox(height: 16),
               const Text(
-                'Correcção Bloqueada',
+                'Upgrade necessário',
                 style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.bold,
@@ -650,7 +888,7 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'A correcção detalhada com resolução passo-a-passo está disponível nos planos Bronze, Prata, Ouro e Diamante.',
+                'Faz upgrade para um plano pago para desbloquear mais anos de exame e a correcção detalhada.',
                 style: TextStyle(
                     fontSize: 13, color: Colors.grey, height: 1.5),
                 textAlign: TextAlign.center,
@@ -670,7 +908,8 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
                   child: const Text(
                     'Ver Planos',
                     style: TextStyle(
-                        fontWeight: FontWeight.bold, color: Colors.white),
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white),
                   ),
                 ),
               ),
@@ -803,42 +1042,6 @@ class _BlocoExplicacao extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _ItemSeguinte extends StatelessWidget {
-  final IconData icone;
-  final Color cor;
-  final String texto;
-
-  const _ItemSeguinte({
-    required this.icone,
-    required this.cor,
-    required this.texto,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(
-          width: 28,
-          height: 28,
-          decoration: BoxDecoration(
-            color: cor.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icone, color: cor, size: 15),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            texto,
-            style: const TextStyle(fontSize: 13, color: Colors.grey),
-          ),
-        ),
-      ],
     );
   }
 }

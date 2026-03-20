@@ -2,17 +2,21 @@ import 'package:flutter/material.dart';
 import 'resultado_screen.dart';
 
 class SimuladorScreen extends StatefulWidget {
+  final String instituicaoId;
   final String instituicaoSigla;
   final String cursoNome;
   final int ano;
   final String disciplina;
+  final String todasDisciplinas;
 
   const SimuladorScreen({
     super.key,
+    required this.instituicaoId,
     required this.instituicaoSigla,
     required this.cursoNome,
     required this.ano,
     required this.disciplina,
+    required this.todasDisciplinas,
   });
 
   @override
@@ -263,10 +267,12 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
       context,
       MaterialPageRoute(
         builder: (context) => ResultadoScreen(
+          instituicaoId: widget.instituicaoId,
           instituicaoSigla: widget.instituicaoSigla,
           cursoNome: widget.cursoNome,
           ano: widget.ano,
           disciplina: widget.disciplina,
+          todasDisciplinas: widget.todasDisciplinas,
           nota: nota,
           acertos: acertos,
           total: _questoes.length,
