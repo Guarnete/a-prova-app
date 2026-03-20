@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'login_screen.dart';
 import 'anos_screen.dart';
+import 'onboarding_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -15,12 +16,24 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _nomeUtilizador = '';
   String _iniciaisUtilizador = '';
-  String _plano = 'Gratuito';
-  String _instituicaoSigla = '';
-  String _cursoNome = '';
-  String _instituicaoId = '';
-  String _disciplinas = '';
+
+  // Lista de todos os cursos do utilizador
+  List<Map<String, dynamic>> _cursos = [];
+
+  // Índice do curso activo (tab seleccionada)
+  int _cursoActivo = 0;
+
   bool _carregando = true;
+
+  // Getters para o curso activo
+  Map<String, dynamic>? get _curso =>
+      _cursos.isNotEmpty ? _cursos[_cursoActivo] : null;
+
+  String get _plano => _formatarPlano(_curso?['plano'] ?? 'gratuito');
+  String get _instituicaoSigla => _curso?['instituicaoSigla'] ?? '';
+  String get _cursoNome => _curso?['cursoNome'] ?? '';
+  String get _instituicaoId => _curso?['instituicaoId'] ?? '';
+  String get _disciplinas => _curso?['disciplinas'] ?? '';
 
   @override
   void initState() {
@@ -45,30 +58,13 @@ class _HomeScreenState extends State<HomeScreen> {
             .map((c) => Map<String, dynamic>.from(c)),
       );
 
-      String plano = 'Gratuito';
-      String instituicaoSigla = '';
-      String cursoNome = '';
-      String instituicaoId = '';
-      String disciplinas = '';
-
-      if (cursos.isNotEmpty) {
-        final cursoActivo = cursos.first;
-        plano = _formatarPlano(cursoActivo['plano'] ?? 'gratuito');
-        instituicaoSigla = cursoActivo['instituicaoSigla'] ?? '';
-        cursoNome = cursoActivo['cursoNome'] ?? '';
-        instituicaoId = cursoActivo['instituicaoId'] ?? '';
-        disciplinas = cursoActivo['disciplinas'] ?? '';
-      }
-
       if (mounted) {
         setState(() {
           _nomeUtilizador = nome;
           _iniciaisUtilizador = iniciais;
-          _plano = plano;
-          _instituicaoSigla = instituicaoSigla;
-          _cursoNome = cursoNome;
-          _instituicaoId = instituicaoId;
-          _disciplinas = disciplinas;
+          _cursos = cursos;
+          // Mantém o índice válido
+          if (_cursoActivo >= cursos.length) _cursoActivo = 0;
           _carregando = false;
         });
       }
@@ -79,6 +75,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _formatarPlano(String plano) {
     switch (plano) {
+      case 'bronze': return 'Plano Bronze';
       case 'prata': return 'Plano Prata';
       case 'ouro': return 'Plano Ouro';
       case 'diamante': return 'Plano Diamante';
@@ -107,7 +104,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_instituicaoId.isEmpty || _cursoNome.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Nenhum curso activo. Completa o onboarding.'),
+          content: Text('Nenhum curso activo.'),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -123,14 +120,24 @@ class _HomeScreenState extends State<HomeScreen> {
           disciplinas: _disciplinas,
         ),
       ),
-    );
+    ).then((_) => _carregarPerfil());
+  }
+
+  void _adicionarCurso() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const OnboardingScreen(modoAdicionar: true),
+      ),
+    ).then((_) => _carregarPerfil());
   }
 
   Future<void> _logout() async {
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Terminar sessão'),
         content: const Text('Tens a certeza que queres sair?'),
         actions: [
@@ -145,7 +152,8 @@ class _HomeScreenState extends State<HomeScreen> {
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('Sair', style: TextStyle(color: Colors.white)),
+            child:
+                const Text('Sair', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
@@ -178,253 +186,368 @@ class _HomeScreenState extends State<HomeScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              _buildHeader(),
+              if (_cursos.length > 1) _buildTabsCursos(),
+              _buildProgresso(),
+              _buildAcessoRapido(),
+              _buildMestreIA(),
+              const SizedBox(height: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-              // ── HEADER ─────────────────────────────────────────────────
-              Container(
-                width: double.infinity,
-                color: const Color(0xFF007AFF),
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            _saudacao(),
-                            style: const TextStyle(
-                                color: Colors.white70, fontSize: 14),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _nomeUtilizador,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 6),
-                          if (_cursoNome.isNotEmpty)
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                  horizontal: 10, vertical: 3),
-                              decoration: BoxDecoration(
-                                color: Colors.white.withValues(alpha: 0.2),
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Text(
-                                '$_instituicaoSigla · $_cursoNome',
-                                style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 10, vertical: 3),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(20),
-                            ),
-                            child: Text(
-                              _plano,
-                              style: const TextStyle(
-                                  color: Colors.white, fontSize: 11),
-                            ),
-                          ),
-                        ],
-                      ),
+  // ── HEADER ──────────────────────────────────────────────────────────────
+  Widget _buildHeader() {
+    return Container(
+      width: double.infinity,
+      color: const Color(0xFF007AFF),
+      padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _saudacao(),
+                  style: const TextStyle(
+                      color: Colors.white70, fontSize: 14),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _nomeUtilizador,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+                if (_cursoNome.isNotEmpty)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    const SizedBox(width: 12),
-                    GestureDetector(
-                      onTap: _logout,
-                      child: CircleAvatar(
-                        radius: 24,
-                        backgroundColor:
-                            Colors.white.withValues(alpha: 0.25),
-                        child: Text(
-                          _iniciaisUtilizador,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 16,
-                          ),
+                    child: Text(
+                      '$_instituicaoSigla · $_cursoNome',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 10, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    _plano,
+                    style: const TextStyle(
+                        color: Colors.white, fontSize: 11),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          GestureDetector(
+            onTap: _logout,
+            child: CircleAvatar(
+              radius: 24,
+              backgroundColor: Colors.white.withValues(alpha: 0.25),
+              child: Text(
+                _iniciaisUtilizador,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── TABS DE CURSOS ───────────────────────────────────────────────────────
+  Widget _buildTabsCursos() {
+    return Container(
+      color: Colors.white,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            padding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            child: Row(
+              children: [
+                ..._cursos.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final curso = entry.value;
+                  final activo = idx == _cursoActivo;
+                  return GestureDetector(
+                    onTap: () => setState(() => _cursoActivo = idx),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 200),
+                      margin: const EdgeInsets.only(right: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: activo
+                            ? const Color(0xFF007AFF)
+                            : Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: activo
+                              ? const Color(0xFF007AFF)
+                              : Colors.grey.shade300,
+                        ),
+                      ),
+                      child: Text(
+                        '${curso['instituicaoSigla']} · ${curso['cursoNome']}',
+                        style: TextStyle(
+                          color:
+                              activo ? Colors.white : Colors.grey.shade700,
+                          fontSize: 12,
+                          fontWeight: activo
+                              ? FontWeight.w600
+                              : FontWeight.w400,
                         ),
                       ),
                     ),
-                  ],
+                  );
+                }),
+                // Botão adicionar curso
+                GestureDetector(
+                  onTap: _adicionarCurso,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                          color: const Color(0xFF007AFF), width: 1.5),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.add,
+                            color: Color(0xFF007AFF), size: 14),
+                        SizedBox(width: 4),
+                        Text(
+                          'Adicionar',
+                          style: TextStyle(
+                            color: Color(0xFF007AFF),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Divider(height: 1, color: Colors.grey.shade200),
+        ],
+      ),
+    );
+  }
+
+  // ── PROGRESSO ────────────────────────────────────────────────────────────
+  Widget _buildProgresso() {
+    return Container(
+      margin: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Progresso de estudo',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Color(0xFF1A1A1A),
                 ),
               ),
-
-              // ── PROGRESSO ──────────────────────────────────────────────
               Container(
-                margin: const EdgeInsets.all(16),
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: Colors.grey.shade200),
+                  color: const Color(0xFFE6F1FB),
+                  borderRadius: BorderRadius.circular(20),
                 ),
+                child: const Text(
+                  '0%',
+                  style: TextStyle(
+                    color: Color(0xFF007AFF),
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: 0.0,
+              minHeight: 8,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                  Color(0xFF007AFF)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '0 simulações completadas',
+            style: TextStyle(fontSize: 12, color: Colors.grey),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── ACESSO RÁPIDO ────────────────────────────────────────────────────────
+  Widget _buildAcessoRapido() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
+          child: Text(
+            'Acesso rápido',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF1A1A1A),
+            ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: _BotaoAcesso(
+                  icone: Icons.track_changes,
+                  titulo: 'Avaliação Preditiva',
+                  subtitulo: 'Exame gerado por IA',
+                  aoTapar: _irParaAvaliacaoPreditiva,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _BotaoAcesso(
+                  icone: Icons.laptop_mac,
+                  titulo: 'Simular Exame',
+                  subtitulo: 'Exames reais anteriores',
+                  aoTapar: _irParaExame,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: _BotaoAcessoLargo(
+            icone: Icons.bar_chart,
+            titulo: 'Ver Resultados',
+            subtitulo: 'Histórico e desempenho',
+            aoTapar: () {},
+          ),
+        ),
+        const SizedBox(height: 12),
+        // Botão adicionar curso (quando só tem 1 curso)
+        if (_cursos.length <= 1)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _BotaoAcessoLargo(
+              icone: Icons.add_circle_outline,
+              titulo: 'Adicionar Curso / Instituição',
+              subtitulo: 'Prepara-te para mais de uma instituição',
+              aoTapar: _adicionarCurso,
+            ),
+          ),
+      ],
+    );
+  }
+
+  // ── MESTRE IA ────────────────────────────────────────────────────────────
+  Widget _buildMestreIA() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      child: GestureDetector(
+        onTap: () {},
+        child: Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: const Color(0xFF007AFF),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: const Icon(Icons.auto_awesome,
+                    color: Colors.white, size: 24),
+              ),
+              const SizedBox(width: 14),
+              const Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Progresso de estudo',
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF1A1A1A),
-                          ),
-                        ),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 10, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFE6F1FB),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: const Text(
-                            '0%',
-                            style: TextStyle(
-                              color: Color(0xFF007AFF),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: 0.0,
-                        minHeight: 8,
-                        backgroundColor: Colors.grey.shade200,
-                        valueColor: const AlwaysStoppedAnimation<Color>(
-                            Color(0xFF007AFF)),
+                    Text(
+                      'Mestre A PROVA AI',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      '0 simulações completadas',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                    SizedBox(height: 3),
+                    Text(
+                      'Estuda com inteligência artificial',
+                      style:
+                          TextStyle(color: Colors.white70, fontSize: 12),
                     ),
                   ],
                 ),
               ),
-
-              // ── ACESSO RÁPIDO ───────────────────────────────────────────
-              const Padding(
-                padding: EdgeInsets.fromLTRB(16, 4, 16, 12),
-                child: Text(
-                  'Acesso rápido',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1A1A1A),
-                  ),
-                ),
-              ),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: _BotaoAcesso(
-                        icone: Icons.track_changes,
-                        titulo: 'Avaliação Preditiva',
-                        subtitulo: 'Exame gerado por IA',
-                        aoTapar: _irParaAvaliacaoPreditiva,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _BotaoAcesso(
-                        icone: Icons.laptop_mac,
-                        titulo: 'Simular Exame',
-                        subtitulo: 'Exames reais anteriores',
-                        aoTapar: _irParaExame,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _BotaoAcessoLargo(
-                  icone: Icons.bar_chart,
-                  titulo: 'Ver Resultados',
-                  subtitulo: 'Histórico e desempenho',
-                  aoTapar: () {},
-                ),
-              ),
-              const SizedBox(height: 12),
-
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
-                child: GestureDetector(
-                  onTap: () {},
-                  child: Container(
-                    padding: const EdgeInsets.all(18),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF007AFF),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(24),
-                          ),
-                          child: const Icon(Icons.auto_awesome,
-                              color: Colors.white, size: 24),
-                        ),
-                        const SizedBox(width: 14),
-                        const Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Mestre A PROVA AI',
-                                style: TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 15,
-                                ),
-                              ),
-                              SizedBox(height: 3),
-                              Text(
-                                'Estuda com inteligência artificial',
-                                style: TextStyle(
-                                    color: Colors.white70, fontSize: 12),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const Icon(Icons.arrow_forward_ios,
-                            color: Colors.white70, size: 16),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
+              const Icon(Icons.arrow_forward_ios,
+                  color: Colors.white70, size: 16),
             ],
           ),
         ),
@@ -433,7 +556,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// ── Botão quadrado ───────────────────────────────────────────────────────────
+// ── Botão quadrado ────────────────────────────────────────────────────────────
 class _BotaoAcesso extends StatelessWidget {
   final IconData icone;
   final String titulo;
@@ -492,7 +615,7 @@ class _BotaoAcesso extends StatelessWidget {
   }
 }
 
-// ── Botão largo ──────────────────────────────────────────────────────────────
+// ── Botão largo ───────────────────────────────────────────────────────────────
 class _BotaoAcessoLargo extends StatelessWidget {
   final IconData icone;
   final String titulo;
@@ -529,26 +652,29 @@ class _BotaoAcessoLargo extends StatelessWidget {
               child: Icon(icone, color: const Color(0xFF007AFF), size: 24),
             ),
             const SizedBox(width: 14),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  titulo,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
-                    color: Color(0xFF1A1A1A),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    titulo,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: Color(0xFF1A1A1A),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  subtitulo,
-                  style: const TextStyle(fontSize: 11, color: Colors.grey),
-                ),
-              ],
+                  const SizedBox(height: 3),
+                  Text(
+                    subtitulo,
+                    style:
+                        const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ],
+              ),
             ),
-            const Spacer(),
-            const Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 14),
+            const Icon(Icons.arrow_forward_ios,
+                color: Colors.grey, size: 14),
           ],
         ),
       ),

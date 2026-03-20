@@ -4,7 +4,12 @@ import '../services/auth_service.dart';
 import 'home_screen.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({super.key});
+  final bool modoAdicionar;
+
+  const OnboardingScreen({
+    super.key,
+    this.modoAdicionar = false,
+  });
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -119,10 +124,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             : disciplinas.toString(),
       );
       if (mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const HomeScreen()),
-          (route) => false,
-        );
+        if (widget.modoAdicionar) {
+          // Modo adicionar: volta à Home e recarrega
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+            (route) => false,
+          );
+        } else {
+          // Modo inicial: vai para Home removendo toda a stack
+          Navigator.of(context).pushAndRemoveUntil(
+            MaterialPageRoute(builder: (_) => const HomeScreen()),
+            (route) => false,
+          );
+        }
       }
     } catch (e) {
       setState(() => _isSaving = false);
@@ -204,7 +218,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           // Subtítulo dourado
           Text(
             _passo == 1
-                ? 'BEM-VINDO À A PROVA'
+                ? (widget.modoAdicionar ? 'ADICIONAR CURSO' : 'BEM-VINDO AO A PROVA')
                 : (_instituicaoSeleccionada!['sigla'] ?? '').toString().toUpperCase(),
             style: const TextStyle(
               color: Color(0xFFD4AF37),
@@ -216,7 +230,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           const SizedBox(height: 6),
           // Título principal — numa só linha
           Text(
-            _passo == 1 ? 'Selecciona a tua instituição' : 'Selecciona o teu curso',
+            _passo == 1
+                ? (widget.modoAdicionar ? 'Adiciona uma instituição' : 'Selecciona a tua instituição')
+                : 'Selecciona o teu curso',
             style: const TextStyle(
               color: Colors.white,
               fontSize: 22,
@@ -513,8 +529,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     child: CircularProgressIndicator(
                         color: Colors.white, strokeWidth: 2.5),
                   )
-                : const Text(
-                    'Começar a estudar',
+                : Text(
+                    widget.modoAdicionar ? 'Adicionar Curso' : 'Começar a estudar',
                     style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,

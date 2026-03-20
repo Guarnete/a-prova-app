@@ -159,16 +159,18 @@ class _AnosScreenState extends State<AnosScreen> {
       return true;
     }
 
-    // Anos seguintes: precisa nota ≥ 13 no ano anterior
+    // Anos seguintes: nota mínima depende do plano
+    // Bronze/Prata: ≥ 13 | Ouro/Diamante: ≥ 15
+    final notaMinima = (_hierarquiaPlanos[_planoUtilizador] ?? 0) >= 3
+        ? 15.0
+        : 13.0;
     final indexAno = _anosDisponiveis.indexWhere((a) => a['ano'] == ano);
     if (indexAno <= 0) return true;
-
     final anoAnterior = _anosDisponiveis[indexAno - 1]['ano'] as int;
     final progressoAnterior =
         _progressoAnos[anoAnterior.toString()] as Map<String, dynamic>?;
     final melhorNota = (progressoAnterior?['melhorNota'] ?? 0).toDouble();
-
-    return melhorNota >= 13;
+    return melhorNota >= notaMinima;
   }
 
   Color _corDoAno(String planoMinimo) {

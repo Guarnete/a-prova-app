@@ -68,7 +68,11 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
   List<String> get _listaDisciplinas =>
       widget.todasDisciplinas.split(',').map((d) => d.trim()).toList();
 
-  // Verifica se todas as disciplinas do ano têm nota ≥ 13
+  // Nota mínima baseada no plano: Bronze/Prata ≥ 13, Ouro/Diamante ≥ 15
+  double get _notaMinima =>
+      (_hierarquiaPlanos[_planoUtilizador] ?? 0) >= 3 ? 15.0 : 13.0;
+
+  // Verifica se todas as disciplinas do ano têm nota ≥ notaMinima
   bool get _todasDisciplinasAprovadas {
     final progressoAno = _progressoAnos[widget.ano.toString()]
         as Map<String, dynamic>?;
@@ -78,23 +82,22 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
     for (final d in _listaDisciplinas) {
       final notaD =
           (disciplinas[d]?['melhorNota'] ?? 0).toDouble();
-      if (notaD < 13) return false;
+      if (notaD < _notaMinima) return false;
     }
     return true;
   }
 
-  // Próxima disciplina sem nota ≥ 13
+  // Próxima disciplina sem nota ≥ notaMinima
   String? get _proximaDisciplinaPendente {
     final progressoAno = _progressoAnos[widget.ano.toString()]
         as Map<String, dynamic>?;
     final disciplinas = Map<String, dynamic>.from(
         progressoAno?['disciplinas'] ?? {});
-
     for (final d in _listaDisciplinas) {
       if (d == widget.disciplina) continue;
       final notaD =
           (disciplinas[d]?['melhorNota'] ?? 0).toDouble();
-      if (notaD < 13) return d;
+      if (notaD < _notaMinima) return d;
     }
     return null;
   }
@@ -351,7 +354,7 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
             const SizedBox(height: 12),
 
             // Botão: próxima disciplina pendente
-            if (widget.nota >= 13 && _proximaDisciplinaPendente != null)
+            if (widget.nota >= _notaMinima && _proximaDisciplinaPendente != null)
               _buildBotaoProximaDisciplina(),
 
             // Botão: desafie o ano seguinte
