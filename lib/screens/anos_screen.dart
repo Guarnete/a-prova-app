@@ -70,6 +70,17 @@ class _AnosScreenState extends State<AnosScreen> {
     if (mounted) setState(() => _carregando = false);
   }
 
+// Remove acentos e converte para ID do Firestore
+  String _normalizarId(String texto) {
+    const acentos = 'àáâãäçèéêëìíîïñòóôõöùúûüý';
+    const semAcentos = 'aaaaaaceeeeiiiinooooouuuuy';
+    var resultado = texto.toLowerCase();
+    for (int i = 0; i < acentos.length; i++) {
+      resultado = resultado.replaceAll(acentos[i], semAcentos[i]);
+    }
+    return resultado.replaceAll(' ', '-');
+  }
+
   // Carrega anos do Firestore: instituicoes/{id}/cursos/{cursoId}/anos
   Future<void> _carregarAnos() async {
     try {
@@ -77,7 +88,7 @@ class _AnosScreenState extends State<AnosScreen> {
           .collection('instituicoes')
           .doc(widget.instituicaoId)
           .collection('cursos')
-          .doc(widget.cursoNome.toLowerCase().replaceAll(' ', '-'))
+          .doc(_normalizarId(widget.cursoNome))
           .collection('anos')
           .get();
 

@@ -114,7 +114,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     setState(() => _isSaving = true);
     try {
       final disciplinas = _cursoSeleccionado!['disciplinas'] ?? '';
-      await _authService.adicionarCurso(
+      final resultado = await _authService.adicionarCurso(
         instituicaoId: _instituicaoSeleccionada!['id'],
         instituicaoSigla: _instituicaoSeleccionada!['sigla'] ?? '',
         instituicaoNome: _instituicaoSeleccionada!['nome'] ?? '',
@@ -123,21 +123,19 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ? disciplinas.join(',')
             : disciplinas.toString(),
       );
-      if (mounted) {
-        if (widget.modoAdicionar) {
-          // Modo adicionar: volta à Home e recarrega
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-            (route) => false,
-          );
-        } else {
-          // Modo inicial: vai para Home removendo toda a stack
-          Navigator.of(context).pushAndRemoveUntil(
-            MaterialPageRoute(builder: (_) => const HomeScreen()),
-            (route) => false,
-          );
-        }
+
+      if (!mounted) return;
+
+      if (resultado['sucesso'] == false) {
+        setState(() => _isSaving = false);
+        _mostrarErro(resultado['erro'] ?? 'Erro ao adicionar curso.');
+        return;
       }
+
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const HomeScreen()),
+        (route) => false,
+      );
     } catch (e) {
       setState(() => _isSaving = false);
       if (mounted) _mostrarErro('Erro ao guardar perfil. Tenta novamente.');
@@ -179,7 +177,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // ── HEADER AZUL ────────────────────────────────────────────────────────────
   Widget _buildHeader() {
     return Container(
       width: double.infinity,
@@ -193,7 +190,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Botão voltar (passo 2)
           if (_passo == 2) ...[
             GestureDetector(
               onTap: _voltarParaInstituicoes,
@@ -204,21 +200,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   SizedBox(width: 4),
                   Text(
                     'Instituições',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w500),
                   ),
                 ],
               ),
             ),
             const SizedBox(height: 12),
           ],
-          // Subtítulo dourado
           Text(
             _passo == 1
-                ? (widget.modoAdicionar ? 'ADICIONAR CURSO' : 'BEM-VINDO AO A PROVA')
+                ? (widget.modoAdicionar ? 'ADICIONAR CURSO' : 'BEM-VINDO À A PROVA')
                 : (_instituicaoSeleccionada!['sigla'] ?? '').toString().toUpperCase(),
             style: const TextStyle(
               color: Color(0xFFD4AF37),
@@ -228,7 +219,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             ),
           ),
           const SizedBox(height: 6),
-          // Título principal — numa só linha
           Text(
             _passo == 1
                 ? (widget.modoAdicionar ? 'Adiciona uma instituição' : 'Selecciona a tua instituição')
@@ -243,9 +233,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            _passo == 1
-                ? 'Onde vais candidatar-te?'
-                : 'Qual é o curso que pretendes?',
+            _passo == 1 ? 'Onde vais candidatar-te?' : 'Qual é o curso que pretendes?',
             style: const TextStyle(color: Colors.white70, fontSize: 14),
           ),
         ],
@@ -253,7 +241,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // ── INDICADOR DE PASSOS ────────────────────────────────────────────────────
   Widget _buildIndicadorPassos() {
     return Container(
       color: Colors.white,
@@ -294,11 +281,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 ? const Icon(Icons.check, color: Colors.white, size: 16)
                 : Text(
                     '$numero',
-                    style: TextStyle(
-                      color: corTexto,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: corTexto, fontWeight: FontWeight.w700, fontSize: 14),
                   ),
           ),
         ),
@@ -315,7 +298,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // ── BARRA DE PESQUISA ──────────────────────────────────────────────────────
   Widget _buildBarraPesquisa() {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
@@ -342,14 +324,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // ── LISTA ──────────────────────────────────────────────────────────────────
   Widget _buildLista() {
     final isLoading = _passo == 1 ? _isLoadingInstituicoes : _isLoadingCursos;
 
     if (isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: Color(0xFF007AFF)),
-      );
+      return const Center(child: CircularProgressIndicator(color: Color(0xFF007AFF)));
     }
 
     final lista = _listaFiltrada;
@@ -361,10 +340,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           children: [
             Icon(Icons.search_off, color: Colors.grey.shade300, size: 48),
             const SizedBox(height: 12),
-            Text(
-              'Nenhum resultado encontrado',
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 15),
-            ),
+            Text('Nenhum resultado encontrado',
+                style: TextStyle(color: Colors.grey.shade400, fontSize: 15)),
           ],
         ),
       );
@@ -381,9 +358,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         return _buildItemLista(
           item: item,
           isSeleccionado: isSeleccionado,
-          onTap: () => _passo == 1
-              ? _seleccionarInstituicao(item)
-              : _seleccionarCurso(item),
+          onTap: () => _passo == 1 ? _seleccionarInstituicao(item) : _seleccionarCurso(item),
         );
       },
     );
@@ -403,12 +378,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          color: isSeleccionado
-              ? const Color(0xFF007AFF).withValues(alpha: 0.06)
-              : Colors.white,
+          color: isSeleccionado ? const Color(0xFF007AFF).withValues(alpha: 0.06) : Colors.white,
           borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            // Bordas azuis sempre visíveis, mais destacadas se seleccionado
             color: isSeleccionado
                 ? const Color(0xFF007AFF)
                 : const Color(0xFF007AFF).withValues(alpha: 0.3),
@@ -417,7 +389,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         ),
         child: Row(
           children: [
-            // Ícone / sigla
             Container(
               width: 44,
               height: 44,
@@ -441,7 +412,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               ),
             ),
             const SizedBox(width: 14),
-            // Nome e cidade
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -449,30 +419,20 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   Text(
                     item['nome'] ?? '',
                     style: TextStyle(
-                      color: isSeleccionado
-                          ? const Color(0xFF007AFF)
-                          : const Color(0xFF1A1A1A),
+                      color: isSeleccionado ? const Color(0xFF007AFF) : const Color(0xFF1A1A1A),
                       fontSize: 15,
-                      fontWeight: isSeleccionado
-                          ? FontWeight.w600
-                          : FontWeight.w500,
+                      fontWeight: isSeleccionado ? FontWeight.w600 : FontWeight.w500,
                     ),
                   ),
                   if (_passo == 1 && item['cidade'] != null) ...[
                     const SizedBox(height: 2),
-                    Text(
-                      item['cidade'],
-                      style: TextStyle(
-                          color: Colors.grey.shade500, fontSize: 12),
-                    ),
+                    Text(item['cidade'], style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
                   ],
                 ],
               ),
             ),
-            // Seta / check
             if (_passo == 1)
-              const Icon(Icons.chevron_right,
-                  color: Color(0xFF007AFF), size: 20)
+              const Icon(Icons.chevron_right, color: Color(0xFF007AFF), size: 20)
             else
               AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
@@ -480,19 +440,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 height: 22,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: isSeleccionado
-                      ? const Color(0xFF007AFF)
-                      : Colors.transparent,
+                  color: isSeleccionado ? const Color(0xFF007AFF) : Colors.transparent,
                   border: Border.all(
-                    color: isSeleccionado
-                        ? const Color(0xFF007AFF)
-                        : Colors.grey.shade300,
+                    color: isSeleccionado ? const Color(0xFF007AFF) : Colors.grey.shade300,
                     width: 1.5,
                   ),
                 ),
-                child: isSeleccionado
-                    ? const Icon(Icons.check, color: Colors.white, size: 13)
-                    : null,
+                child: isSeleccionado ? const Icon(Icons.check, color: Colors.white, size: 13) : null,
               ),
           ],
         ),
@@ -500,7 +454,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // ── BOTÃO CONCLUIR ─────────────────────────────────────────────────────────
   Widget _buildBotaoConcluir() {
     final bool habilitado = _cursoSeleccionado != null && !_isSaving;
 
@@ -518,23 +471,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               backgroundColor: const Color(0xFF007AFF),
               disabledBackgroundColor: const Color(0xFF007AFF),
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               elevation: 0,
             ),
             child: _isSaving
                 ? const SizedBox(
                     width: 22,
                     height: 22,
-                    child: CircularProgressIndicator(
-                        color: Colors.white, strokeWidth: 2.5),
+                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5),
                   )
                 : Text(
                     widget.modoAdicionar ? 'Adicionar Curso' : 'Começar a estudar',
-                    style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.3),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600, letterSpacing: 0.3),
                   ),
           ),
         ),
@@ -542,12 +490,11 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     );
   }
 
-  // ── HELPER: emoji por curso ────────────────────────────────────────────────
   String _iconeCurso(String nomeCurso) {
     final nome = nomeCurso.toLowerCase();
     if (nome.contains('medicina') || nome.contains('enfermagem')) return '🏥';
     if (nome.contains('direito')) return '⚖️';
-    if (nome.contains('engenharia') || nome.contains('informática')) return '💻';
+    if (nome.contains('engenharia') || nome.contains('informática') || nome.contains('informatica')) return '💻';
     if (nome.contains('economia') || nome.contains('gestão')) return '📊';
     if (nome.contains('educação') || nome.contains('pedagogia')) return '📚';
     if (nome.contains('arquitectura')) return '🏛️';

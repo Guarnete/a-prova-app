@@ -87,7 +87,7 @@ class AuthService {
   }
 
   // ADICIONAR CURSO AO PERFIL
-  Future<void> adicionarCurso({
+  Future<Map<String, dynamic>> adicionarCurso({
     required String instituicaoId,
     required String instituicaoSigla,
     required String instituicaoNome,
@@ -95,7 +95,29 @@ class AuthService {
     required String disciplinas,
   }) async {
     final user = currentUser;
-    if (user == null) return;
+    if (user == null) return {'sucesso': false, 'erro': 'Utilizador não autenticado.'};
+
+    // Verificar se o curso já existe
+    final doc = await _firestore.collection('utilizadores').doc(user.uid).get();
+    final dados = doc.data();
+    if (dados != null) {
+      final cursosExistentes = List<Map<String, dynamic>>.from(
+        (dados['cursos'] as List<dynamic>? ?? [])
+            .map((c) => Map<String, dynamic>.from(c)),
+      );
+      final jaExiste = cursosExistentes.any(
+        (c) =>
+            c['instituicaoId'] == instituicaoId &&
+            c['cursoNome'] == cursoNome,
+      );
+      if (jaExiste) {
+        return {
+          'sucesso': false,
+          'erro': 'Já tens o curso $cursoNome da $instituicaoSigla adicionado.',
+        };
+      }
+    }
+
     final novoCurso = {
       'instituicaoId': instituicaoId,
       'instituicaoSigla': instituicaoSigla,
@@ -109,11 +131,15 @@ class AuthService {
       'dataExpiracao': null,
       'adicionadoEm': DateTime.now().toIso8601String(),
     };
+
     await _firestore.collection('utilizadores').doc(user.uid).update({
       'cursos': FieldValue.arrayUnion([novoCurso]),
       'onboardingCompleto': true,
     });
+
+    return {'sucesso': true};
   }
+  
 
   // CARREGAR PERFIL COMPLETO
   Future<Map<String, dynamic>?> carregarPerfil() async {
