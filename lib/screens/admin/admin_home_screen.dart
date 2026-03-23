@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
-import '../services/auth_service.dart';
-import '../services/admin_service.dart';
-import 'login_screen.dart';
-import 'anos_screen.dart';
-import 'onboarding_screen.dart';
-import 'admin/admin_gate.dart';
+import 'admin_questoes_screen.dart';
+import 'admin_conteudo_screen.dart';
+import 'admin_utilizadores_screen.dart';
+import 'admin_pendentes_screen.dart';
 
 class AdminHomeScreen extends StatelessWidget {
   final Map<String, dynamic> perfilAdmin;
