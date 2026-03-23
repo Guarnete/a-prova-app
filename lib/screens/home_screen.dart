@@ -3,6 +3,8 @@ import '../services/auth_service.dart';
 import 'login_screen.dart';
 import 'anos_screen.dart';
 import 'onboarding_screen.dart';
+import '../services/admin_service.dart';
+import 'admin/admin_gate.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -24,6 +26,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int _cursoActivo = 0;
 
   bool _carregando = true;
+  bool _eAdmin = false;
+  final AdminService _adminService = AdminService();
 
   // Getters para o curso activo
   Map<String, dynamic>? get _curso =>
@@ -58,13 +62,15 @@ class _HomeScreenState extends State<HomeScreen> {
             .map((c) => Map<String, dynamic>.from(c)),
       );
 
+      final eAdmin = await _adminService.eAdmin();
+
       if (mounted) {
         setState(() {
           _nomeUtilizador = nome;
           _iniciaisUtilizador = iniciais;
           _cursos = cursos;
-          // Mantém o índice válido
           if (_cursoActivo >= cursos.length) _cursoActivo = 0;
+          _eAdmin = eAdmin;
           _carregando = false;
         });
       }
@@ -264,6 +270,24 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(width: 12),
+          if (_eAdmin) ...[
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminGate()),
+              ),
+              child: Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD4AF37).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFD4AF37).withValues(alpha: 0.5)),
+                ),
+                child: const Icon(Icons.admin_panel_settings, color: Color(0xFFD4AF37), size: 20),
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
           GestureDetector(
             onTap: _logout,
             child: CircleAvatar(
