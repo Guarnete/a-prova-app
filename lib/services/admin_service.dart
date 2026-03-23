@@ -274,6 +274,23 @@ class AdminService {
         .update({'activo': activo});
   }
 
+  Future<List<Map<String, dynamic>>> carregarAnosAdmin({
+    required String instituicaoId,
+    required String cursoId,
+  }) async {
+    final snapshot = await _firestore
+        .collection('instituicoes')
+        .doc(instituicaoId)
+        .collection('cursos')
+        .doc(cursoId)
+        .collection('anos')
+        .orderBy('ano')
+        .get();
+    return snapshot.docs
+        .map((doc) => {'id': doc.id, ...doc.data()})
+        .toList();
+  }
+
   // ── ESTATÍSTICAS ──────────────────────────────────────────────────────────
 
   Future<Map<String, dynamic>> carregarEstatisticas({
