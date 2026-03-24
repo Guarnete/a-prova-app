@@ -241,6 +241,7 @@ class AdminService {
     required int ano,
     required String planoMinimo,
     required int duracaoMinutos,
+    String tipo = 'real',
   }) async {
     await _firestore
         .collection('instituicoes')
@@ -253,6 +254,7 @@ class AdminService {
       'ano': ano,
       'planoMinimo': planoMinimo,
       'duracaoMinutos': duracaoMinutos,
+      'tipo': tipo,
       'activo': true,
       'criadoEm': FieldValue.serverTimestamp(),
     });
