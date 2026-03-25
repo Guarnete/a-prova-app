@@ -187,6 +187,12 @@ class AdminService {
         .toList();
   }
 
+Future<Map<String, dynamic>?> carregarInstituicaoById(String instituicaoId) async {
+    final doc = await _firestore.collection('instituicoes').doc(instituicaoId).get();
+    if (!doc.exists) return null;
+    return {'id': doc.id, ...doc.data()!};
+  }
+
   Future<void> adicionarInstituicao({
     required String id,
     required String nome,

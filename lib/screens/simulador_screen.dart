@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'resultado_screen.dart';
 
 class SimuladorScreen extends StatefulWidget {
@@ -24,73 +25,70 @@ class SimuladorScreen extends StatefulWidget {
 }
 
 class _SimuladorScreenState extends State<SimuladorScreen> {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+
   int _perguntaActual = 0;
   final Map<int, int> _respostas = {};
-  int _tempoRestante = 90 * 60; // 90 minutos
+  int _tempoRestante = 90 * 60;
   bool _timerActivo = true;
 
-  final List<Map<String, dynamic>> _questoes = [
-    {
-      'texto': 'A Constituição da República de Moçambique define o Estado como:',
-      'opcoes': [
-        'A) Autocrático',
-        'B) De Direito Democrático',
-        'C) Monárquico',
-        'D) Teocrático',
-      ],
-      'correcta': 1,
-      'justificacao': 'O Artigo 1 da CRM estabelece Moçambique como um Estado de Direito Democrático.',
-    },
-    {
-      'texto': 'O Rio Zambeze desagua no Oceano:',
-      'opcoes': [
-        'A) Atlântico',
-        'B) Pacífico',
-        'C) Índico',
-        'D) Antártico',
-      ],
-      'correcta': 2,
-      'justificacao': 'O Rio Zambeze desagua no Canal de Moçambique, parte do Oceano Índico.',
-    },
-    {
-      'texto': 'Qual é a capital de Moçambique?',
-      'opcoes': [
-        'A) Beira',
-        'B) Nampula',
-        'C) Maputo',
-        'D) Quelimane',
-      ],
-      'correcta': 2,
-      'justificacao': 'Maputo é a capital e maior cidade de Moçambique.',
-    },
-    {
-      'texto': 'Moçambique tornou-se independente em:',
-      'opcoes': [
-        'A) 1964',
-        'B) 1970',
-        'C) 1975',
-        'D) 1980',
-      ],
-      'correcta': 2,
-      'justificacao': 'Moçambique proclamou a sua independência a 25 de Junho de 1975.',
-    },
-    {
-      'texto': 'Qual é a língua oficial de Moçambique?',
-      'opcoes': [
-        'A) Inglês',
-        'B) Francês',
-        'C) Swahili',
-        'D) Português',
-      ],
-      'correcta': 3,
-      'justificacao': 'O Português é a língua oficial de Moçambique, herança do período colonial.',
-    },
-  ];
+  List<Map<String, dynamic>> _questoes = [];
+  bool _carregando = true;
+  bool _semQuestoes = false;
+
+  // ID do curso normalizado (sem acentos, com hífens)
+  String get _cursoId {
+    const acentos = 'àáâãäçèéêëìíîïñòóôõöùúûüý';
+    const semAcentos = 'aaaaaaceeeeiiiinooooouuuuy';
+    var resultado = widget.cursoNome.toLowerCase();
+    for (int i = 0; i < acentos.length; i++) {
+      resultado = resultado.replaceAll(acentos[i], semAcentos[i]);
+    }
+    return resultado.replaceAll(' ', '-');
+  }
 
   @override
   void initState() {
     super.initState();
-    _iniciarTimer();
+    _carregarQuestoes();
+  }
+
+  Future<void> _carregarQuestoes() async {
+    setState(() => _carregando = true);
+    try {
+      final snapshot = await _firestore
+          .collection('instituicoes')
+          .doc(widget.instituicaoId)
+          .collection('cursos')
+          .doc(_cursoId)
+          .collection('anos')
+          .doc('${widget.ano}')
+          .collection('disciplinas')
+          .doc(widget.disciplina)
+          .collection('questoes')
+          .orderBy('ordem')
+          .get();
+
+      final questoes = snapshot.docs
+          .map((doc) => {'id': doc.id, ...doc.data()})
+          .toList();
+
+      if (mounted) {
+        setState(() {
+          _questoes = questoes;
+          _carregando = false;
+          _semQuestoes = questoes.isEmpty;
+        });
+        if (questoes.isNotEmpty) _iniciarTimer();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _carregando = false;
+          _semQuestoes = true;
+        });
+      }
+    }
   }
 
   void _iniciarTimer() {
@@ -102,7 +100,7 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
           _tempoRestante--;
         } else {
           _timerActivo = false;
-          _finalizarExame();
+          _submeterExame();
         }
       });
       return _timerActivo && _tempoRestante > 0;
@@ -126,25 +124,20 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
   }
 
   void _finalizarExame() {
-    // Verificar questões por responder
     final naoRespondidas = <int>[];
     for (int i = 0; i < _questoes.length; i++) {
-      if (!_respostas.containsKey(i)) naoRespondidas.add(i + 1);
+      if (!_respostas.containsKey(i)) { naoRespondidas.add(i + 1); }
     }
-
-    // Se há questões por responder e o tempo não esgotou, alertar
     if (naoRespondidas.isNotEmpty && _timerActivo) {
       _mostrarDialogQuestoesPorResponder(naoRespondidas);
       return;
     }
-
     _submeterExame();
   }
 
   void _mostrarDialogQuestoesPorResponder(List<int> naoRespondidas) {
     final numerosFormatados = naoRespondidas.join(', ');
     final totalPorResponder = naoRespondidas.length;
-
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -155,32 +148,19 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 64,
-                height: 64,
+                width: 64, height: 64,
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
-                  shape: BoxShape.circle,
-                ),
+                  color: Colors.orange.shade50, shape: BoxShape.circle),
                 child: Icon(Icons.warning_amber_rounded,
                     color: Colors.orange.shade600, size: 32),
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Questões por responder',
-                style: TextStyle(
-                  fontSize: 17,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1A1A1A),
-                ),
-              ),
+              const Text('Questões por responder',
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
               const SizedBox(height: 8),
-              Text(
-                'Tens $totalPorResponder questão(ões) sem resposta:',
-                style: const TextStyle(fontSize: 13, color: Colors.grey),
-                textAlign: TextAlign.center,
-              ),
+              Text('Tens $totalPorResponder questão(ões) sem resposta:',
+                  style: const TextStyle(fontSize: 13, color: Colors.grey), textAlign: TextAlign.center),
               const SizedBox(height: 8),
-              // Lista das questões por responder
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -189,63 +169,40 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.orange.shade200),
                 ),
-                child: Text(
-                  'Questão(ões) nº $numerosFormatados',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.orange.shade800,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
+                child: Text('Questão(ões) nº $numerosFormatados',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.orange.shade800),
+                    textAlign: TextAlign.center),
               ),
               const SizedBox(height: 20),
-              // Botão: ir para primeira questão por responder
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
                     Navigator.pop(context);
-                    setState(() {
-                      // Navega para a primeira questão por responder
-                      _perguntaActual = naoRespondidas.first - 1;
-                    });
+                    setState(() { _perguntaActual = naoRespondidas.first - 1; });
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFF007AFF),
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Responder questões em falta',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold, color: Colors.white),
-                  ),
+                  child: const Text('Responder questões em falta',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
               ),
               const SizedBox(height: 8),
-              // Botão: submeter mesmo assim
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    _submeterExame();
-                  },
+                  onPressed: () { Navigator.pop(context); _submeterExame(); },
                   style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     side: BorderSide(color: Colors.grey.shade400),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: Text(
-                    'Submeter assim mesmo',
-                    style: TextStyle(
-                        color: Colors.grey.shade600,
-                        fontWeight: FontWeight.w500),
-                  ),
+                  child: Text('Submeter assim mesmo',
+                      style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
                 ),
               ),
             ],
@@ -260,9 +217,9 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
     final tempoGasto = (90 * 60) - _tempoRestante;
     int acertos = 0;
     for (int i = 0; i < _questoes.length; i++) {
-      if (_respostas[i] == _questoes[i]['correcta']) acertos++;
+      if (_respostas[i] == _questoes[i]['correcta']) { acertos++; }
     }
-    final nota = (acertos / _questoes.length) * 20;
+    final nota = _questoes.isEmpty ? 0.0 : (acertos / _questoes.length) * 20;
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
@@ -296,16 +253,12 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
             children: [
               const Text('⚠️', style: TextStyle(fontSize: 40)),
               const SizedBox(height: 12),
-              const Text(
-                'Sair do Exame?',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+              const Text('Sair do Exame?',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              const Text(
-                'O teu progresso será perdido se saíres agora.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.grey, fontSize: 13),
-              ),
+              const Text('O teu progresso será perdido se saíres agora.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey, fontSize: 13)),
               const SizedBox(height: 20),
               Row(
                 children: [
@@ -353,6 +306,89 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Carregando questões
+    if (_carregando) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF5F7FA),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const CircularProgressIndicator(color: Color(0xFF007AFF)),
+              const SizedBox(height: 16),
+              Text('A carregar questões de ${widget.disciplina}...',
+                  style: const TextStyle(color: Colors.grey, fontSize: 14)),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Sem questões
+    if (_semQuestoes) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF5F7FA),
+        body: SafeArea(
+          child: Column(
+            children: [
+              Container(
+                color: const Color(0xFF007AFF),
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => Navigator.pop(context),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white24,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.close, color: Colors.white, size: 20),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Text(widget.disciplina.toUpperCase(),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.quiz_outlined, color: Colors.grey.shade300, size: 64),
+                      const SizedBox(height: 16),
+                      const Text('Sem questões disponíveis',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                      const SizedBox(height: 8),
+                      Text(
+                        'O admin ainda não adicionou questões\npara ${widget.disciplina} — ${widget.ano}.',
+                        style: const TextStyle(fontSize: 14, color: Colors.grey, height: 1.5),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF007AFF),
+                          padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
+                        child: const Text('Voltar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final questao = _questoes[_perguntaActual];
     final progresso = (_perguntaActual + 1) / _questoes.length;
 
@@ -361,8 +397,7 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
       body: SafeArea(
         child: Column(
           children: [
-
-            // HEADER DO SIMULADOR
+            // HEADER
             Container(
               color: const Color(0xFF007AFF),
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
@@ -382,18 +417,10 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                   ),
                   Column(
                     children: [
-                      Text(
-                        widget.disciplina.toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                        ),
-                      ),
-                      Text(
-                        '${widget.instituicaoSigla} · ${widget.ano}',
-                        style: const TextStyle(color: Colors.white70, fontSize: 11),
-                      ),
+                      Text(widget.disciplina.toUpperCase(),
+                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text('${widget.instituicaoSigla} · ${widget.ano}',
+                          style: const TextStyle(color: Colors.white70, fontSize: 11)),
                     ],
                   ),
                   Container(
@@ -406,14 +433,9 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                       children: [
                         const Icon(Icons.timer, color: Colors.white, size: 14),
                         const SizedBox(width: 4),
-                        Text(
-                          _formatarTempo(_tempoRestante),
-                          style: TextStyle(
-                            color: _corTimer(),
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                          ),
-                        ),
+                        Text(_formatarTempo(_tempoRestante),
+                            style: TextStyle(
+                                color: _corTimer(), fontWeight: FontWeight.bold, fontSize: 14)),
                       ],
                     ),
                   ),
@@ -430,18 +452,10 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
-                        'Questão ${_perguntaActual + 1} de ${_questoes.length}',
-                        style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1A1A1A),
-                        ),
-                      ),
-                      Text(
-                        '${(_respostas.length)} respondidas',
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
-                      ),
+                      Text('Questão ${_perguntaActual + 1} de ${_questoes.length}',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1A1A1A))),
+                      Text('${_respostas.length} respondidas',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey)),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -465,8 +479,6 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-
-                    // CARD DA QUESTÃO
                     Container(
                       width: double.infinity,
                       padding: const EdgeInsets.all(20),
@@ -476,22 +488,20 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                         border: Border.all(color: Colors.grey.shade200),
                       ),
                       child: Text(
-                        questao['texto'] as String,
+                        questao['texto'] as String? ?? '',
                         style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1A1A1A),
-                          height: 1.5,
-                        ),
+                            fontSize: 16, fontWeight: FontWeight.w600,
+                            color: Color(0xFF1A1A1A), height: 1.5),
                       ),
                     ),
                     const SizedBox(height: 16),
 
                     // OPÇÕES
-                    ...(questao['opcoes'] as List<String>).asMap().entries.map((entry) {
+                    ...(List<String>.from(questao['opcoes'] ?? [])).asMap().entries.map((entry) {
                       final idx = entry.key;
                       final opcao = entry.value;
                       final seleccionada = _respostas[_perguntaActual] == idx;
+                      final letra = String.fromCharCode(65 + idx);
 
                       return GestureDetector(
                         onTap: () => setState(() => _respostas[_perguntaActual] = idx),
@@ -509,33 +519,27 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                           child: Row(
                             children: [
                               Container(
-                                width: 28,
-                                height: 28,
+                                width: 28, height: 28,
                                 decoration: BoxDecoration(
                                   color: seleccionada ? Colors.white24 : const Color(0xFFE6F1FB),
                                   borderRadius: BorderRadius.circular(14),
                                 ),
                                 child: Center(
-                                  child: Text(
-                                    opcao[0],
-                                    style: TextStyle(
-                                      color: seleccionada ? Colors.white : const Color(0xFF007AFF),
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    ),
-                                  ),
+                                  child: Text(letra,
+                                      style: TextStyle(
+                                        color: seleccionada ? Colors.white : const Color(0xFF007AFF),
+                                        fontWeight: FontWeight.bold, fontSize: 13,
+                                      )),
                                 ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
-                                child: Text(
-                                  opcao.substring(3),
-                                  style: TextStyle(
-                                    color: seleccionada ? Colors.white : const Color(0xFF1A1A1A),
-                                    fontSize: 14,
-                                    fontWeight: seleccionada ? FontWeight.w600 : FontWeight.normal,
-                                  ),
-                                ),
+                                child: Text(opcao,
+                                    style: TextStyle(
+                                      color: seleccionada ? Colors.white : const Color(0xFF1A1A1A),
+                                      fontSize: 14,
+                                      fontWeight: seleccionada ? FontWeight.w600 : FontWeight.normal,
+                                    )),
                               ),
                               if (seleccionada)
                                 const Icon(Icons.check_circle, color: Colors.white, size: 20),
@@ -564,10 +568,8 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                           side: const BorderSide(color: Color(0xFF007AFF)),
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
-                        child: const Text(
-                          '← Anterior',
-                          style: TextStyle(color: Color(0xFF007AFF), fontWeight: FontWeight.bold),
-                        ),
+                        child: const Text('← Anterior',
+                            style: TextStyle(color: Color(0xFF007AFF), fontWeight: FontWeight.bold)),
                       ),
                     ),
                   if (_perguntaActual > 0) const SizedBox(width: 12),
@@ -587,11 +589,7 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                       ),
                       child: Text(
                         _perguntaActual == _questoes.length - 1 ? 'Finalizar ✓' : 'Próxima →',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 15,
-                        ),
+                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                     ),
                   ),
