@@ -7,6 +7,7 @@ import '../services/admin_service.dart';
 import 'admin/admin_gate.dart';
 import 'historico_screen.dart';
 import 'ranking_screen.dart';
+import 'forum_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -513,13 +514,14 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 12),
+
+const SizedBox(height: 12),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: _BotaoAcessoLargo(
             icone: Icons.leaderboard,
             titulo: 'Ranking',
-            subtitulo: 'Tabela de classificação',
+            subtitulo: 'Tabela de classificacao',
             aoTapar: () {
               if (_instituicaoId.isEmpty || _cursoNome.isEmpty) return;
               Navigator.push(
@@ -529,6 +531,30 @@ class _HomeScreenState extends State<HomeScreen> {
                     instituicaoId: _instituicaoId,
                     instituicaoSigla: _instituicaoSigla,
                     cursoNome: _cursoNome,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: _BotaoAcessoLargo(
+            icone: Icons.forum,
+            titulo: 'Forum',
+            subtitulo: 'Duvidas e respostas da comunidade',
+            aoTapar: () {
+              if (_instituicaoId.isEmpty || _cursoNome.isEmpty) return;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ForumScreen(
+                    instituicaoId: _instituicaoId,
+                    instituicaoSigla: _instituicaoSigla,
+                    cursoNome: _cursoNome,
+                    disciplinas: _disciplinas,
                   ),
                 ),
               );
