@@ -36,7 +36,6 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
   bool _carregando = true;
   bool _semQuestoes = false;
 
-  // ID do curso normalizado (sem acentos, com hífens)
   String get _cursoId {
     const acentos = 'àáâãäçèéêëìíîïñòóôõöùúûüý';
     const semAcentos = 'aaaaaaceeeeiiiinooooouuuuy';
@@ -56,26 +55,42 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
   Future<void> _carregarQuestoes() async {
     setState(() => _carregando = true);
     try {
-      final snapshot = await _firestore
-          .collection('instituicoes')
-          .doc(widget.instituicaoId)
-          .collection('cursos')
-          .doc(_cursoId)
-          .collection('anos')
-          .doc('${widget.ano}')
-          .collection('disciplinas')
-          .doc(widget.disciplina)
+      final exameSnapshot = await _firestore
+          .collection('avaliacoes')
+          .where('instituicaoId', isEqualTo: widget.instituicaoId)
+          .where('cursoId', isEqualTo: _cursoId)
+          .where('ano', isEqualTo: '${widget.ano}')
+          .where('disciplina', isEqualTo: widget.disciplina)
+          .where('activo', isEqualTo: true)
+          .limit(1)
+          .get();
+
+      if (exameSnapshot.docs.isEmpty) {
+        if (mounted) {
+          setState(() { _carregando = false; _semQuestoes = true; });
+        }
+        return;
+      }
+
+      final exameId = exameSnapshot.docs.first.id;
+      final duracaoMinutos =
+          exameSnapshot.docs.first.data()['duracaoMinutos'] as int? ?? 90;
+
+      final questoesSnapshot = await _firestore
+          .collection('avaliacoes')
+          .doc(exameId)
           .collection('questoes')
           .orderBy('ordem')
           .get();
 
-      final questoes = snapshot.docs
+      final questoes = questoesSnapshot.docs
           .map((doc) => {'id': doc.id, ...doc.data()})
           .toList();
 
       if (mounted) {
         setState(() {
           _questoes = questoes;
+          _tempoRestante = duracaoMinutos * 60;
           _carregando = false;
           _semQuestoes = questoes.isEmpty;
         });
@@ -83,10 +98,7 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
       }
     } catch (e) {
       if (mounted) {
-        setState(() {
-          _carregando = false;
-          _semQuestoes = true;
-        });
+        setState(() { _carregando = false; _semQuestoes = true; });
       }
     }
   }
@@ -136,8 +148,6 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
   }
 
   void _mostrarDialogQuestoesPorResponder(List<int> naoRespondidas) {
-    final numerosFormatados = naoRespondidas.join(', ');
-    final totalPorResponder = naoRespondidas.length;
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -149,16 +159,14 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
             children: [
               Container(
                 width: 64, height: 64,
-                decoration: BoxDecoration(
-                  color: Colors.orange.shade50, shape: BoxShape.circle),
-                child: Icon(Icons.warning_amber_rounded,
-                    color: Colors.orange.shade600, size: 32),
+                decoration: BoxDecoration(color: Colors.orange.shade50, shape: BoxShape.circle),
+                child: Icon(Icons.warning_amber_rounded, color: Colors.orange.shade600, size: 32),
               ),
               const SizedBox(height: 16),
               const Text('Questões por responder',
                   style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
               const SizedBox(height: 8),
-              Text('Tens $totalPorResponder questão(ões) sem resposta:',
+              Text('Tens ${naoRespondidas.length} questão(ões) sem resposta:',
                   style: const TextStyle(fontSize: 13, color: Colors.grey), textAlign: TextAlign.center),
               const SizedBox(height: 8),
               Container(
@@ -169,8 +177,9 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                   borderRadius: BorderRadius.circular(12),
                   border: Border.all(color: Colors.orange.shade200),
                 ),
-                child: Text('Questão(ões) nº $numerosFormatados',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.orange.shade800),
+                child: Text('Questão(ões) nº ${naoRespondidas.join(', ')}',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                        color: Colors.orange.shade800),
                     textAlign: TextAlign.center),
               ),
               const SizedBox(height: 20),
@@ -214,7 +223,7 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
 
   void _submeterExame() {
     _timerActivo = false;
-    final tempoGasto = (90 * 60) - _tempoRestante;
+    final tempoGasto = _tempoRestante >= 0 ? (_questoes.isNotEmpty ? 90 * 60 - _tempoRestante : 0) : 0;
     int acertos = 0;
     for (int i = 0; i < _questoes.length; i++) {
       if (_respostas[i] == _questoes[i]['correcta']) { acertos++; }
@@ -223,7 +232,7 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (context) => ResultadoScreen(
+        builder: (_) => ResultadoScreen(
           instituicaoId: widget.instituicaoId,
           instituicaoSigla: widget.instituicaoSigla,
           cursoNome: widget.cursoNome,
@@ -256,7 +265,7 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
               const Text('Sair do Exame?',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 8),
-              const Text('O teu progresso será perdido se saíres agora.',
+              const Text('O teu progresso será perdido.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: Colors.grey, fontSize: 13)),
               const SizedBox(height: 20),
@@ -306,7 +315,6 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Carregando questões
     if (_carregando) {
       return Scaffold(
         backgroundColor: const Color(0xFFF5F7FA),
@@ -324,7 +332,6 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
       );
     }
 
-    // Sem questões
     if (_semQuestoes) {
       return Scaffold(
         backgroundColor: const Color(0xFFF5F7FA),
@@ -349,7 +356,8 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                     ),
                     const SizedBox(width: 12),
                     Text(widget.disciplina.toUpperCase(),
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                        style: const TextStyle(color: Colors.white,
+                            fontWeight: FontWeight.bold, fontSize: 14)),
                   ],
                 ),
               ),
@@ -361,10 +369,11 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                       Icon(Icons.quiz_outlined, color: Colors.grey.shade300, size: 64),
                       const SizedBox(height: 16),
                       const Text('Sem questões disponíveis',
-                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF1A1A1A))),
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold,
+                              color: Color(0xFF1A1A1A))),
                       const SizedBox(height: 8),
                       Text(
-                        'O admin ainda não adicionou questões\npara ${widget.disciplina} — ${widget.ano}.',
+                        'O admin ainda não criou o exame\npara ${widget.disciplina} — ${widget.ano}.',
                         style: const TextStyle(fontSize: 14, color: Colors.grey, height: 1.5),
                         textAlign: TextAlign.center,
                       ),
@@ -377,7 +386,8 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           elevation: 0,
                         ),
-                        child: const Text('Voltar', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                        child: const Text('Voltar',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                       ),
                     ],
                   ),
@@ -418,7 +428,8 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                   Column(
                     children: [
                       Text(widget.disciplina.toUpperCase(),
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                          style: const TextStyle(color: Colors.white,
+                              fontWeight: FontWeight.bold, fontSize: 14)),
                       Text('${widget.instituicaoSigla} · ${widget.ano}',
                           style: const TextStyle(color: Colors.white70, fontSize: 11)),
                     ],
@@ -434,8 +445,8 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                         const Icon(Icons.timer, color: Colors.white, size: 14),
                         const SizedBox(width: 4),
                         Text(_formatarTempo(_tempoRestante),
-                            style: TextStyle(
-                                color: _corTimer(), fontWeight: FontWeight.bold, fontSize: 14)),
+                            style: TextStyle(color: _corTimer(),
+                                fontWeight: FontWeight.bold, fontSize: 14)),
                       ],
                     ),
                   ),
@@ -453,7 +464,8 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Text('Questão ${_perguntaActual + 1} de ${_questoes.length}',
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1A1A1A))),
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                              color: Color(0xFF1A1A1A))),
                       Text('${_respostas.length} respondidas',
                           style: const TextStyle(fontSize: 12, color: Colors.grey)),
                     ],
@@ -489,8 +501,7 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                       ),
                       child: Text(
                         questao['texto'] as String? ?? '',
-                        style: const TextStyle(
-                            fontSize: 16, fontWeight: FontWeight.w600,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600,
                             color: Color(0xFF1A1A1A), height: 1.5),
                       ),
                     ),
@@ -589,7 +600,8 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
                       ),
                       child: Text(
                         _perguntaActual == _questoes.length - 1 ? 'Finalizar ✓' : 'Próxima →',
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                        style: const TextStyle(color: Colors.white,
+                            fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                     ),
                   ),
