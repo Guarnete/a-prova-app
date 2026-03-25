@@ -6,6 +6,7 @@ import 'onboarding_screen.dart';
 import '../services/admin_service.dart';
 import 'admin/admin_gate.dart';
 import 'historico_screen.dart';
+import 'ranking_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -510,6 +511,28 @@ class _HomeScreenState extends State<HomeScreen> {
               context,
               MaterialPageRoute(builder: (_) => const HistoricoScreen()),
             ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: _BotaoAcessoLargo(
+            icone: Icons.leaderboard,
+            titulo: 'Ranking',
+            subtitulo: 'Tabela de classificação',
+            aoTapar: () {
+              if (_instituicaoId.isEmpty || _cursoNome.isEmpty) return;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => RankingScreen(
+                    instituicaoId: _instituicaoId,
+                    instituicaoSigla: _instituicaoSigla,
+                    cursoNome: _cursoNome,
+                  ),
+                ),
+              );
+            },
           ),
         ),
 

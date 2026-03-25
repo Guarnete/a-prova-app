@@ -263,19 +263,36 @@ class AuthService {
   }) async {
     final user = currentUser;
     if (user == null) return;
+
     final nome = user.displayName ?? 'Estudante';
     final chaveRanking = '${instituicaoId}_$cursoNome';
-    await _firestore
+    final docRef = _firestore
         .collection('ranking')
         .doc(chaveRanking)
         .collection('estudantes')
-        .doc(user.uid)
-        .set({
+        .doc(user.uid);
+
+    // Carrega provincia do perfil
+    String provincia = '';
+    try {
+      final perfil = await _firestore.collection('utilizadores').doc(user.uid).get();
+      provincia = perfil.data()?['provincia'] as String? ?? '';
+    } catch (_) {}
+
+    // Só actualiza se for melhor nota
+    final docActual = await docRef.get();
+    if (docActual.exists) {
+      final notaActual = (docActual.data()?['melhorNota'] ?? 0).toDouble();
+      if (nota <= notaActual) return; // não actualiza se nota não melhorou
+    }
+
+    await docRef.set({
       'uid': user.uid,
       'nome': nome,
       'melhorNota': nota,
+      'provincia': provincia,
       'actualizadoEm': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    });
   }
 
   // TRADUZIR ERROS

@@ -120,6 +120,12 @@ class _ResultadoScreenState extends State<ResultadoScreen> {
       total: widget.total,
       tempoGasto: widget.tempoGasto,
     );
+    // Actualiza ranking global (só grava se for a melhor nota)
+    await _authService.actualizarRanking(
+      instituicaoId: widget.instituicaoId,
+      cursoNome: widget.cursoNome,
+      nota: widget.nota,
+    );
     // Depois carrega o perfil actualizado
     await _carregarPerfil();
   }
