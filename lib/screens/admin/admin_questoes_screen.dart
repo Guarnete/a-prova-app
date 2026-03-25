@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../services/admin_service.dart';
 
 class AdminQuestoesScreen extends StatefulWidget {
@@ -18,15 +17,13 @@ class AdminQuestoesScreen extends StatefulWidget {
 
 class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
   final AdminService _adminService = AdminService();
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // Selecções sequenciais
   Map<String, dynamic>? _instituicao;
   Map<String, dynamic>? _curso;
   Map<String, dynamic>? _ano;
   String? _disciplina;
+  String? _exameId;
 
-  // Dados carregados
   List<Map<String, dynamic>> _instituicoes = [];
   List<Map<String, dynamic>> _cursos = [];
   List<Map<String, dynamic>> _anos = [];
@@ -34,9 +31,7 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
   List<Map<String, dynamic>> _questoes = [];
 
   bool _carregando = true;
-
-  // Passo actual: 1=Inst, 2=Curso, 3=Ano, 4=Disciplina, 5=Questões
-  int _passo = 1;
+  int _passo = 1; // 1=Inst, 2=Curso, 3=Ano, 4=Disciplina, 5=Questões
 
   @override
   void initState() {
@@ -51,17 +46,12 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
       if (widget.eSuperAdmin) {
         lista = await _adminService.carregarInstituicoes();
       } else {
-        // Admin normal só vê a sua instituição
-        final snapshot = await _firestore
-            .collection('instituicoes')
-            .doc(widget.instituicaoId)
-            .get();
-        lista = [{'id': snapshot.id, ...snapshot.data()!}];
+        final inst = await _adminService.carregarInstituicaoById(widget.instituicaoId);
+        lista = inst != null ? [inst] : [];
       }
       setState(() {
         _instituicoes = lista;
         _carregando = false;
-        // Se só tem uma instituição, selecciona automaticamente
         if (lista.length == 1) {
           _instituicao = lista.first;
           _passo = 2;
@@ -76,40 +66,26 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
   Future<void> _carregarCursos() async {
     if (_instituicao == null) return;
     setState(() => _carregando = true);
-    try {
-      final cursos = await _adminService.carregarCursos(_instituicao!['id']);
-      setState(() {
-        _cursos = cursos;
-        _carregando = false;
-      });
-    } catch (e) {
-      setState(() => _carregando = false);
-    }
+    final cursos = await _adminService.carregarCursos(_instituicao!['id']);
+    setState(() { _cursos = cursos; _carregando = false; });
   }
 
   Future<void> _carregarAnos() async {
     if (_instituicao == null || _curso == null) return;
     setState(() => _carregando = true);
-    try {
-      final anos = await _adminService.carregarAnosAdmin(
-        instituicaoId: _instituicao!['id'],
-        cursoId: _curso!['id'],
-      );
-      setState(() {
-        _anos = anos;
-        _carregando = false;
-      });
-    } catch (e) {
-      setState(() => _carregando = false);
-    }
+    final anos = await _adminService.carregarAnosAdmin(
+      instituicaoId: _instituicao!['id'],
+      cursoId: _curso!['id'],
+    );
+    setState(() { _anos = anos; _carregando = false; });
   }
 
-  Future<void> _carregarDisciplinas() async {
+  void _carregarDisciplinas() {
     if (_curso == null) return;
-    final disciplinasStr = _curso!['disciplinas'] as String? ?? '';
+    final str = _curso!['disciplinas'] as String? ?? '';
     setState(() {
-      _disciplinas =
-          disciplinasStr.split(',').map((d) => d.trim()).where((d) => d.isNotEmpty).toList();
+      _disciplinas = str.split(',').map((d) => d.trim()).where((d) => d.isNotEmpty).toList();
+      _disciplina = null;
     });
   }
 
@@ -117,50 +93,32 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
     if (_instituicao == null || _curso == null || _ano == null || _disciplina == null) return;
     setState(() => _carregando = true);
     try {
-      final snapshot = await _firestore
-          .collection('instituicoes')
-          .doc(_instituicao!['id'])
-          .collection('cursos')
-          .doc(_curso!['id'])
-          .collection('anos')
-          .doc('${_ano!['ano']}')
-          .collection('disciplinas')
-          .doc(_disciplina)
-          .collection('questoes')
-          .orderBy('ordem')
-          .get();
-
-      setState(() {
-        _questoes = snapshot.docs
-            .map((doc) => {'id': doc.id, ...doc.data()})
-            .toList();
-        _carregando = false;
-      });
+      // Encontra o exame na colecção avaliacoes
+      final exames = await _adminService.carregarExames(
+        instituicaoId: _instituicao!['id'],
+        cursoId: _curso!['id'],
+        ano: '${_ano!['ano']}',
+      );
+      final exame = exames.where((e) => e['disciplina'] == _disciplina).firstOrNull;
+      if (exame == null) {
+        setState(() { _exameId = null; _questoes = []; _carregando = false; });
+        return;
+      }
+      _exameId = exame['id'] as String;
+      final questoes = await _adminService.carregarQuestoesExame(_exameId!);
+      setState(() { _questoes = questoes; _carregando = false; });
     } catch (e) {
-      setState(() => _carregando = false);
+      setState(() { _questoes = []; _carregando = false; });
     }
   }
 
   void _voltarPasso() {
     setState(() {
-      if (_passo == 5) {
-        _passo = 4;
-        _disciplina = null;
-        _questoes = [];
-      } else if (_passo == 4) {
-        _passo = 3;
-        _ano = null;
-        _disciplinas = [];
-      } else if (_passo == 3) {
-        _passo = 2;
-        _curso = null;
-        _anos = [];
-      } else if (_passo == 2) {
-        if (widget.eSuperAdmin) {
-          _passo = 1;
-          _instituicao = null;
-          _cursos = [];
-        }
+      switch (_passo) {
+        case 2: if (widget.eSuperAdmin) { _passo = 1; _instituicao = null; _cursos = []; } break;
+        case 3: _passo = 2; _curso = null; _anos = []; _disciplinas = []; break;
+        case 4: _passo = 3; _disciplina = null; break;
+        case 5: _passo = 4; _questoes = []; _exameId = null; break;
       }
     });
   }
@@ -174,14 +132,16 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
           children: [
             _buildHeader(),
             _buildMigalhas(),
-            Expanded(child: _buildConteudoPasso()),
+            Expanded(child: _buildConteudo()),
           ],
         ),
       ),
       floatingActionButton: _passo == 5
           ? FloatingActionButton.extended(
-              onPressed: _abrirFormularioNovaQuestao,
-              backgroundColor: const Color(0xFFD4AF37),
+              onPressed: _exameId != null ? _abrirFormularioNovaQuestao : null,
+              backgroundColor: _exameId != null
+                  ? const Color(0xFFD4AF37)
+                  : Colors.grey.shade700,
               icon: const Icon(Icons.add, color: Colors.white),
               label: const Text('Nova Questão',
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
@@ -213,40 +173,25 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'QUESTÕES DE EXAME',
-                  style: TextStyle(
-                    color: Color(0xFFD4AF37),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-                Text(
-                  'Selecciona ${titulos[_passo - 1]}',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
+                const Text('QUESTÕES DE EXAME',
+                    style: TextStyle(color: Color(0xFFD4AF37), fontSize: 11,
+                        fontWeight: FontWeight.w700, letterSpacing: 1.5)),
+                Text('Selecciona ${titulos[_passo - 1]}',
+                    style: const TextStyle(color: Colors.white, fontSize: 18,
+                        fontWeight: FontWeight.bold)),
               ],
             ),
           ),
-          if (_questoes.isNotEmpty)
+          if (_passo == 5 && _questoes.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: const Color(0xFF007AFF).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(20),
               ),
-              child: Text(
-                '${_questoes.length}',
-                style: const TextStyle(
-                    color: Color(0xFF007AFF),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13),
-              ),
+              child: Text('${_questoes.length}',
+                  style: const TextStyle(color: Color(0xFF007AFF),
+                      fontWeight: FontWeight.bold, fontSize: 13)),
             ),
         ],
       ),
@@ -278,18 +223,14 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        passos[i],
-                        style: TextStyle(
-                          color: activo
-                              ? const Color(0xFFD4AF37)
-                              : completo
-                                  ? Colors.white.withValues(alpha: 0.6)
-                                  : Colors.white.withValues(alpha: 0.2),
-                          fontSize: 10,
-                          fontWeight: activo ? FontWeight.w700 : FontWeight.w400,
-                        ),
-                      ),
+                      Text(passos[i],
+                          style: TextStyle(
+                            color: activo ? const Color(0xFFD4AF37)
+                                : completo ? Colors.white.withValues(alpha: 0.6)
+                                : Colors.white.withValues(alpha: 0.2),
+                            fontSize: 10,
+                            fontWeight: activo ? FontWeight.w700 : FontWeight.w400,
+                          )),
                     ],
                   ),
                 ),
@@ -302,29 +243,18 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
     );
   }
 
-  Widget _buildConteudoPasso() {
+  Widget _buildConteudo() {
     if (_carregando) {
       return const Center(child: CircularProgressIndicator(color: Color(0xFFD4AF37)));
     }
-
     switch (_passo) {
       case 1: return _buildListaSeleccao(
-        items: _instituicoes,
-        campoNome: 'nome',
-        campoSub: 'cidade',
-        onTap: (item) {
-          setState(() { _instituicao = item; _passo = 2; });
-          _carregarCursos();
-        },
+        items: _instituicoes, campoNome: 'nome', campoSub: 'cidade',
+        onTap: (item) { setState(() { _instituicao = item; _passo = 2; }); _carregarCursos(); },
       );
       case 2: return _buildListaSeleccao(
-        items: _cursos,
-        campoNome: 'nome',
-        campoSub: 'disciplinas',
-        onTap: (item) {
-          setState(() { _curso = item; _passo = 3; });
-          _carregarAnos();
-        },
+        items: _cursos, campoNome: 'nome', campoSub: 'disciplinas',
+        onTap: (item) { setState(() { _curso = item; _passo = 3; }); _carregarAnos(); _carregarDisciplinas(); },
       );
       case 3: return _buildListaAnos();
       case 4: return _buildListaDisciplinas();
@@ -340,12 +270,9 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
     required void Function(Map<String, dynamic>) onTap,
   }) {
     if (items.isEmpty) {
-      return Center(
-        child: Text('Nenhum item disponível.',
-            style: TextStyle(color: Colors.white.withValues(alpha: 0.4))),
-      );
+      return Center(child: Text('Nenhum item disponível.',
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.4))));
     }
-
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: items.length,
@@ -364,35 +291,25 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
             child: Row(
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 44, height: 44,
                   decoration: BoxDecoration(
                     color: const Color(0xFFD4AF37).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.chevron_right,
-                      color: Color(0xFFD4AF37), size: 22),
+                  child: const Icon(Icons.chevron_right, color: Color(0xFFD4AF37), size: 22),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        item[campoNome] as String? ?? item['id'] as String? ?? '',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 15),
-                      ),
+                      Text(item[campoNome] as String? ?? item['id'] as String? ?? '',
+                          style: const TextStyle(color: Colors.white,
+                              fontWeight: FontWeight.w600, fontSize: 15)),
                       if (campoSub != null && item[campoSub] != null)
-                        Text(
-                          item[campoSub].toString(),
-                          style: TextStyle(
-                              color: Colors.white.withValues(alpha: 0.4),
-                              fontSize: 12),
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        Text(item[campoSub].toString(),
+                            style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
+                            overflow: TextOverflow.ellipsis),
                     ],
                   ),
                 ),
@@ -407,143 +324,64 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
   }
 
   Widget _buildListaAnos() {
-    return Column(
-      children: [
-        Expanded(
-          child: _anos.isEmpty
-              ? Center(
-                  child: Text('Nenhum ano disponível.',
-                      style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.4))))
-              : ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: _anos.length,
-                  itemBuilder: (context, index) {
-                    final ano = _anos[index];
-                    final tipo = ano['tipo'] as String? ?? 'real';
-                    final plano = ano['planoMinimo'] as String? ?? 'gratuito';
-                    return GestureDetector(
-                      onTap: () {
-                        setState(() { _ano = ano; _passo = 4; });
-                        _carregarDisciplinas();
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 10),
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF1A1A1A),
-                          borderRadius: BorderRadius.circular(14),
-                          border: Border.all(
-                              color: Colors.white.withValues(alpha: 0.08)),
-                        ),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 44,
-                              height: 44,
-                              decoration: BoxDecoration(
-                                color: (tipo == 'preditiva'
-                                        ? Colors.purple
-                                        : const Color(0xFF007AFF))
-                                    .withValues(alpha: 0.15),
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: Icon(
-                                tipo == 'preditiva'
-                                    ? Icons.auto_awesome
-                                    : Icons.school,
-                                color: tipo == 'preditiva'
-                                    ? Colors.purple
-                                    : const Color(0xFF007AFF),
-                                size: 20,
-                              ),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '${ano['ano']}',
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16),
-                                  ),
-                                  Row(
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 8, vertical: 2),
-                                        decoration: BoxDecoration(
-                                          color: (tipo == 'preditiva'
-                                                  ? Colors.purple
-                                                  : const Color(0xFF007AFF))
-                                              .withValues(alpha: 0.15),
-                                          borderRadius:
-                                              BorderRadius.circular(10),
-                                        ),
-                                        child: Text(
-                                          tipo == 'preditiva'
-                                              ? 'Preditiva'
-                                              : 'Real',
-                                          style: TextStyle(
-                                            color: tipo == 'preditiva'
-                                                ? Colors.purple
-                                                : const Color(0xFF007AFF),
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w600,
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 6),
-                                      Text(
-                                        plano,
-                                        style: TextStyle(
-                                            color: Colors.white
-                                                .withValues(alpha: 0.4),
-                                            fontSize: 11),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                            Icon(Icons.arrow_forward_ios,
-                                color: Colors.white.withValues(alpha: 0.3),
-                                size: 16),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
+    if (_anos.isEmpty) {
+      return Center(child: Text('Nenhum ano disponível.',
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.4))));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: _anos.length,
+      itemBuilder: (context, index) {
+        final ano = _anos[index];
+        final plano = ano['planoMinimo'] as String? ?? 'gratuito';
+        return GestureDetector(
+          onTap: () { setState(() { _ano = ano; _passo = 4; }); },
+          child: Container(
+            margin: const EdgeInsets.only(bottom: 10),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1A1A1A),
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44, height: 44,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF007AFF).withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.school, color: Color(0xFF007AFF), size: 20),
                 ),
-        ),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: () => _mostrarFormularioAno(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFD4AF37),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-                elevation: 0,
-              ),
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text('Adicionar Ano',
-                  style: TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.bold)),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${ano['ano']}',
+                          style: const TextStyle(color: Colors.white,
+                              fontWeight: FontWeight.bold, fontSize: 16)),
+                      Text(plano,
+                          style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12)),
+                    ],
+                  ),
+                ),
+                Icon(Icons.arrow_forward_ios,
+                    color: Colors.white.withValues(alpha: 0.3), size: 16),
+              ],
             ),
           ),
-        ),
-      ],
+        );
+      },
     );
   }
 
   Widget _buildListaDisciplinas() {
+    if (_disciplinas.isEmpty) {
+      return Center(child: Text('Nenhuma disciplina configurada.',
+          style: TextStyle(color: Colors.white.withValues(alpha: 0.4))));
+    }
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: _disciplinas.length,
@@ -565,24 +403,18 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
             child: Row(
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 44, height: 44,
                   decoration: BoxDecoration(
                     color: const Color(0xFFD4AF37).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.book,
-                      color: Color(0xFFD4AF37), size: 20),
+                  child: const Icon(Icons.book, color: Color(0xFFD4AF37), size: 20),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
-                  child: Text(
-                    disciplina,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15),
-                  ),
+                  child: Text(disciplina,
+                      style: const TextStyle(color: Colors.white,
+                          fontWeight: FontWeight.w600, fontSize: 15)),
                 ),
                 Icon(Icons.arrow_forward_ios,
                     color: Colors.white.withValues(alpha: 0.3), size: 16),
@@ -595,284 +427,147 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
   }
 
   Widget _buildListaQuestoes() {
+    if (_exameId == null) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.quiz_outlined, color: Colors.white.withValues(alpha: 0.2), size: 48),
+            const SizedBox(height: 12),
+            Text('Nenhum exame criado para\n$_disciplina — ${_ano?['ano']}.',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 14),
+                textAlign: TextAlign.center),
+            const SizedBox(height: 16),
+            Text('Usa "Criar Exame" para criar o exame primeiro.',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 12),
+                textAlign: TextAlign.center),
+          ],
+        ),
+      );
+    }
     if (_questoes.isEmpty) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.quiz_outlined,
-                color: Colors.white.withValues(alpha: 0.2), size: 48),
+            Icon(Icons.quiz_outlined, color: Colors.white.withValues(alpha: 0.2), size: 48),
             const SizedBox(height: 12),
-            Text(
-              'Ainda não há questões.\nClica em "Nova Questão" para adicionar.',
-              style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.4), fontSize: 14),
-              textAlign: TextAlign.center,
-            ),
+            Text('Nenhuma questão ainda.\nClica em "Nova Questão" para adicionar.',
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 14),
+                textAlign: TextAlign.center),
           ],
         ),
       );
     }
-
     return ListView.builder(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
       itemCount: _questoes.length,
-      itemBuilder: (context, index) {
-        final questao = _questoes[index];
-        final opcoes = List<String>.from(questao['opcoes'] ?? []);
-        final correcta = questao['correcta'] as int? ?? 0;
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          decoration: BoxDecoration(
-            color: const Color(0xFF1A1A1A),
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.04),
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(14),
-                    topRight: Radius.circular(14),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 28,
-                      height: 28,
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: Text('${index + 1}',
-                            style: const TextStyle(
-                                color: Color(0xFFD4AF37),
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12)),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        questao['texto'] as String? ?? '',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            height: 1.4),
-                      ),
-                    ),
-                    Row(
-                      children: [
-                        GestureDetector(
-                          onTap: () => _abrirFormularioEditarQuestao(questao),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF007AFF).withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.edit,
-                                color: Color(0xFF007AFF), size: 16),
-                          ),
-                        ),
-                        const SizedBox(width: 6),
-                        GestureDetector(
-                          onTap: () => _confirmarApagar(questao['id'] as String),
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: Colors.red.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(Icons.delete,
-                                color: Colors.red, size: 16),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  children: opcoes.asMap().entries.map((entry) {
-                    final idx = entry.key;
-                    final opcao = entry.value;
-                    final isCorrecta = idx == correcta;
-                    return Container(
-                      margin: const EdgeInsets.only(bottom: 6),
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: isCorrecta
-                            ? Colors.green.withValues(alpha: 0.1)
-                            : Colors.white.withValues(alpha: 0.03),
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: isCorrecta
-                              ? Colors.green.withValues(alpha: 0.4)
-                              : Colors.white.withValues(alpha: 0.06),
-                        ),
-                      ),
-                      child: Row(
-                        children: [
-                          Text(
-                            String.fromCharCode(65 + idx),
-                            style: TextStyle(
-                              color: isCorrecta
-                                  ? Colors.green
-                                  : Colors.white.withValues(alpha: 0.5),
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(opcao,
-                                style: TextStyle(
-                                  color: isCorrecta
-                                      ? Colors.green
-                                      : Colors.white.withValues(alpha: 0.7),
-                                  fontSize: 12,
-                                )),
-                          ),
-                          if (isCorrecta)
-                            const Icon(Icons.check_circle,
-                                color: Colors.green, size: 14),
-                        ],
-                      ),
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+      itemBuilder: (context, index) => _buildCardQuestao(_questoes[index], index),
     );
   }
 
-  void _mostrarFormularioAno(BuildContext context) {
-    final anoController = TextEditingController();
-    final duracaoController = TextEditingController(text: '90');
-    String planoMinimo = 'gratuito';
-    String tipo = 'real';
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
-          backgroundColor: const Color(0xFF1A1A1A),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Adicionar Ano', style: TextStyle(color: Colors.white)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+  Widget _buildCardQuestao(Map<String, dynamic> questao, int index) {
+    final opcoes = List<String>.from(questao['opcoes'] ?? []);
+    final correcta = questao['correcta'] as int? ?? 0;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1A1A1A),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.07)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.fromLTRB(16, 12, 12, 12),
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.04),
+              borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(14), topRight: Radius.circular(14)),
+            ),
+            child: Row(
               children: [
-                _buildDialogField(anoController, 'Ano (ex: 2026)', TextInputType.number),
-                const SizedBox(height: 12),
-                _buildDialogField(duracaoController, 'Duração (minutos)', TextInputType.number),
-                const SizedBox(height: 12),
-                // Tipo
-                DropdownButtonFormField<String>(
-                  initialValue: tipo,
-                  dropdownColor: const Color(0xFF2A2A2A),
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Tipo de exame',
-                    labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.07),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                Container(
+                  width: 28, height: 28,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFD4AF37).withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
                   ),
-                  items: const [
-                    DropdownMenuItem(value: 'real', child: Text('Exame Real')),
-                    DropdownMenuItem(value: 'preditiva', child: Text('Avaliação Preditiva')),
-                  ],
-                  onChanged: (val) => setStateDialog(() => tipo = val ?? 'real'),
+                  child: Center(child: Text('${index + 1}',
+                      style: const TextStyle(color: Color(0xFFD4AF37),
+                          fontWeight: FontWeight.bold, fontSize: 12))),
                 ),
-                const SizedBox(height: 12),
-                // Plano mínimo
-                DropdownButtonFormField<String>(
-                  initialValue: planoMinimo,
-                  dropdownColor: const Color(0xFF2A2A2A),
-                  style: const TextStyle(color: Colors.white),
-                  decoration: InputDecoration(
-                    labelText: 'Plano mínimo',
-                    labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
-                    filled: true,
-                    fillColor: Colors.white.withValues(alpha: 0.07),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  items: ['gratuito', 'bronze', 'prata', 'ouro']
-                      .map((p) => DropdownMenuItem(value: p, child: Text(p)))
-                      .toList(),
-                  onChanged: (val) => setStateDialog(() => planoMinimo = val ?? 'gratuito'),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(questao['texto'] as String? ?? '',
+                      style: const TextStyle(color: Colors.white, fontSize: 13,
+                          fontWeight: FontWeight.w500, height: 1.4)),
+                ),
+                Row(
+                  children: [
+                    _iconBtn(Icons.edit, const Color(0xFF007AFF),
+                        () => _abrirFormularioEditarQuestao(questao)),
+                    const SizedBox(width: 6),
+                    _iconBtn(Icons.delete, Colors.red,
+                        () => _confirmarApagar(questao['id'] as String)),
+                  ],
                 ),
               ],
             ),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancelar', style: TextStyle(color: Colors.grey)),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                final ano = int.tryParse(anoController.text);
-                final duracao = int.tryParse(duracaoController.text) ?? 90;
-                if (ano == null) return;
-                Navigator.pop(context);
-                await _adminService.adicionarAno(
-                  instituicaoId: _instituicao!['id'],
-                  cursoId: _curso!['id'],
-                  ano: ano,
-                  planoMinimo: planoMinimo,
-                  duracaoMinutos: duracao,
-                  tipo: tipo,
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              children: opcoes.asMap().entries.map((entry) {
+                final isCorrecta = entry.key == correcta;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 6),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: isCorrecta
+                        ? Colors.green.withValues(alpha: 0.1)
+                        : Colors.white.withValues(alpha: 0.03),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: isCorrecta
+                            ? Colors.green.withValues(alpha: 0.4)
+                            : Colors.white.withValues(alpha: 0.06)),
+                  ),
+                  child: Row(
+                    children: [
+                      Text(String.fromCharCode(65 + entry.key),
+                          style: TextStyle(
+                              color: isCorrecta ? Colors.green : Colors.white.withValues(alpha: 0.5),
+                              fontWeight: FontWeight.bold, fontSize: 12)),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(entry.value,
+                          style: TextStyle(
+                              color: isCorrecta ? Colors.green : Colors.white.withValues(alpha: 0.7),
+                              fontSize: 12))),
+                      if (isCorrecta)
+                        const Icon(Icons.check_circle, color: Colors.green, size: 14),
+                    ],
+                  ),
                 );
-                await _carregarAnos();
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFD4AF37),
-                elevation: 0,
-              ),
-              child: const Text('Adicionar', style: TextStyle(color: Colors.white)),
+              }).toList(),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildDialogField(TextEditingController controller, String label, TextInputType type) {
-    return TextField(
-      controller: controller,
-      keyboardType: type,
-      style: const TextStyle(color: Colors.white),
-      decoration: InputDecoration(
-        labelText: label,
-        labelStyle: TextStyle(color: Colors.white.withValues(alpha: 0.5)),
-        filled: true,
-        fillColor: Colors.white.withValues(alpha: 0.07),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-        enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1)),
+  Widget _iconBtn(IconData icone, Color cor, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: cor.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(8),
         ),
-        focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
-          borderSide: const BorderSide(color: Color(0xFFD4AF37)),
-        ),
+        child: Icon(icone, color: cor, size: 16),
       ),
     );
   }
@@ -888,21 +583,22 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
       builder: (_) => _FormularioQuestao(
         questao: questao,
         onGuardar: (dados) async {
-          final ref = _firestore
-              .collection('instituicoes')
-              .doc(_instituicao!['id'])
-              .collection('cursos')
-              .doc(_curso!['id'])
-              .collection('anos')
-              .doc('${_ano!['ano']}')
-              .collection('disciplinas')
-              .doc(_disciplina)
-              .collection('questoes');
-
           if (questao == null) {
-            await ref.add({...dados, 'ordem': _questoes.length + 1});
+            await _adminService.adicionarQuestaoExame(
+              exameId: _exameId!,
+              texto: dados['texto'],
+              opcoes: List<String>.from(dados['opcoes']),
+              respostaCorrecta: dados['correcta'],
+              justificacao: dados['justificacao'],
+              resolucao: dados['resolucao'],
+              ordem: _questoes.length + 1,
+            );
           } else {
-            await ref.doc(questao['id'] as String).update(dados);
+            await _adminService.editarQuestaoExame(
+              exameId: _exameId!,
+              questaoId: questao['id'] as String,
+              dados: dados,
+            );
           }
           await _carregarQuestoes();
         },
@@ -917,7 +613,8 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
         backgroundColor: const Color(0xFF1A1A1A),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Text('Apagar questão?', style: TextStyle(color: Colors.white)),
-        content: const Text('Esta acção não pode ser desfeita.', style: TextStyle(color: Colors.grey)),
+        content: const Text('Esta acção não pode ser desfeita.',
+            style: TextStyle(color: Colors.grey)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -926,25 +623,12 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
           ElevatedButton(
             onPressed: () async {
               Navigator.pop(context);
-              await _firestore
-                  .collection('instituicoes')
-                  .doc(_instituicao!['id'])
-                  .collection('cursos')
-                  .doc(_curso!['id'])
-                  .collection('anos')
-                  .doc('${_ano!['ano']}')
-                  .collection('disciplinas')
-                  .doc(_disciplina)
-                  .collection('questoes')
-                  .doc(questaoId)
-                  .delete();
+              await _adminService.apagarQuestaoExame(
+                  exameId: _exameId!, questaoId: questaoId);
               await _carregarQuestoes();
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, elevation: 0,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))),
             child: const Text('Apagar', style: TextStyle(color: Colors.white)),
           ),
         ],
@@ -1000,9 +684,7 @@ class _FormularioQuestaoState extends State<_FormularioQuestao> {
 
   Future<void> _guardar() async {
     if (_textoController.text.isEmpty) return;
-    for (final c in _opcoesControllers) {
-      if (c.text.isEmpty) return;
-    }
+    for (final c in _opcoesControllers) { if (c.text.isEmpty) return; }
     setState(() => _guardando = true);
     await widget.onGuardar({
       'texto': _textoController.text.trim(),
@@ -1011,7 +693,7 @@ class _FormularioQuestaoState extends State<_FormularioQuestao> {
       'justificacao': _justificacaoController.text.trim(),
       'resolucao': _resolucaoController.text.trim(),
     });
-    if (mounted) { Navigator.pop(context); }
+    if (mounted) Navigator.pop(context);
   }
 
   @override
@@ -1021,32 +703,21 @@ class _FormularioQuestaoState extends State<_FormularioQuestao> {
       decoration: const BoxDecoration(
         color: Color(0xFF1A1A1A),
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(24),
-          topRight: Radius.circular(24),
-        ),
+            topLeft: Radius.circular(24), topRight: Radius.circular(24)),
       ),
       child: Column(
         children: [
-          Center(
-            child: Container(
-              margin: const EdgeInsets.only(top: 12),
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
+          Center(child: Container(
+            margin: const EdgeInsets.only(top: 12), width: 40, height: 4,
+            decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(2)))),
           Padding(
             padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
             child: Row(
               children: [
-                Text(
-                  widget.questao == null ? 'Nova Questão' : 'Editar Questão',
-                  style: const TextStyle(
-                      color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
-                ),
+                Text(widget.questao == null ? 'Nova Questão' : 'Editar Questão',
+                    style: const TextStyle(color: Colors.white, fontSize: 18,
+                        fontWeight: FontWeight.bold)),
                 const Spacer(),
                 GestureDetector(
                   onTap: () => Navigator.pop(context),
@@ -1062,13 +733,13 @@ class _FormularioQuestaoState extends State<_FormularioQuestao> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _label('Enunciado da questão *'),
+                  _label('Enunciado *'),
                   const SizedBox(height: 8),
                   _campo(_textoController, 'Escreve o enunciado...', maxLines: 3),
                   const SizedBox(height: 20),
                   _label('Opções de resposta *'),
                   const SizedBox(height: 4),
-                  Text('Toca na opção correcta para a seleccionar',
+                  Text('Toca na letra para marcar como correcta',
                       style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12)),
                   const SizedBox(height: 10),
                   ...List.generate(4, (i) {
@@ -1085,46 +756,34 @@ class _FormularioQuestaoState extends State<_FormularioQuestao> {
                               : Colors.white.withValues(alpha: 0.04),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: isCorrecta
-                                ? Colors.green.withValues(alpha: 0.5)
-                                : Colors.white.withValues(alpha: 0.08),
-                          ),
+                              color: isCorrecta
+                                  ? Colors.green.withValues(alpha: 0.5)
+                                  : Colors.white.withValues(alpha: 0.08)),
                         ),
                         child: Row(
                           children: [
                             Container(
-                              width: 28,
-                              height: 28,
+                              width: 28, height: 28,
                               decoration: BoxDecoration(
-                                color: isCorrecta
-                                    ? Colors.green
-                                    : Colors.white.withValues(alpha: 0.08),
+                                color: isCorrecta ? Colors.green : Colors.white.withValues(alpha: 0.08),
                                 shape: BoxShape.circle,
                               ),
-                              child: Center(
-                                child: Text(letra,
-                                    style: TextStyle(
-                                      color: isCorrecta
-                                          ? Colors.white
-                                          : Colors.white.withValues(alpha: 0.5),
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 13,
-                                    )),
-                              ),
+                              child: Center(child: Text(letra,
+                                  style: TextStyle(
+                                      color: isCorrecta ? Colors.white : Colors.white.withValues(alpha: 0.5),
+                                      fontWeight: FontWeight.bold, fontSize: 13))),
                             ),
                             const SizedBox(width: 10),
-                            Expanded(
-                              child: TextField(
-                                controller: _opcoesControllers[i],
-                                style: const TextStyle(color: Colors.white, fontSize: 13),
-                                decoration: InputDecoration(
-                                  hintText: 'Opção $letra...',
-                                  hintStyle: TextStyle(
-                                      color: Colors.white.withValues(alpha: 0.3), fontSize: 13),
-                                  border: InputBorder.none,
-                                ),
+                            Expanded(child: TextField(
+                              controller: _opcoesControllers[i],
+                              style: const TextStyle(color: Colors.white, fontSize: 13),
+                              decoration: InputDecoration(
+                                hintText: 'Opção $letra...',
+                                hintStyle: TextStyle(
+                                    color: Colors.white.withValues(alpha: 0.3), fontSize: 13),
+                                border: InputBorder.none,
                               ),
-                            ),
+                            )),
                           ],
                         ),
                       ),
@@ -1140,8 +799,7 @@ class _FormularioQuestaoState extends State<_FormularioQuestao> {
                   _campo(_resolucaoController, 'Resolução detalhada...', maxLines: 4),
                   const SizedBox(height: 32),
                   SizedBox(
-                    width: double.infinity,
-                    height: 54,
+                    width: double.infinity, height: 54,
                     child: ElevatedButton(
                       onPressed: _guardando ? null : _guardar,
                       style: ElevatedButton.styleFrom(
@@ -1150,13 +808,12 @@ class _FormularioQuestaoState extends State<_FormularioQuestao> {
                         elevation: 0,
                       ),
                       child: _guardando
-                          ? const SizedBox(
-                              width: 22, height: 22,
+                          ? const SizedBox(width: 22, height: 22,
                               child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2.5))
                           : Text(
                               widget.questao == null ? 'Adicionar Questão' : 'Guardar Alterações',
-                              style: const TextStyle(
-                                  color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                              style: const TextStyle(color: Colors.white,
+                                  fontWeight: FontWeight.bold, fontSize: 16)),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -1170,21 +827,17 @@ class _FormularioQuestaoState extends State<_FormularioQuestao> {
   }
 
   Widget _label(String texto) => Text(texto,
-      style: TextStyle(
-          color: Colors.white.withValues(alpha: 0.7),
-          fontSize: 13,
-          fontWeight: FontWeight.w600));
+      style: TextStyle(color: Colors.white.withValues(alpha: 0.7),
+          fontSize: 13, fontWeight: FontWeight.w600));
 
   Widget _campo(TextEditingController controller, String hint, {int maxLines = 1}) =>
       TextField(
-        controller: controller,
-        maxLines: maxLines,
+        controller: controller, maxLines: maxLines,
         style: const TextStyle(color: Colors.white, fontSize: 14),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 14),
-          filled: true,
-          fillColor: Colors.white.withValues(alpha: 0.06),
+          filled: true, fillColor: Colors.white.withValues(alpha: 0.06),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.1))),
           enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12),

@@ -52,7 +52,7 @@ class _DisciplinasScreenState extends State<DisciplinasScreen> {
           .collection('resultados')
           .where('ano', isEqualTo: widget.ano)
           .where('cursoNome', isEqualTo: widget.cursoNome)
-          .where('instituicaoId', isEqualTo: widget.instituicaoSigla)
+          .where('instituicaoId', isEqualTo: widget.instituicaoId)
           .get();
 
       // Calcula melhor nota por disciplina
