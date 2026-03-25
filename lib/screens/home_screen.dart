@@ -5,6 +5,7 @@ import 'anos_screen.dart';
 import 'onboarding_screen.dart';
 import '../services/admin_service.dart';
 import 'admin/admin_gate.dart';
+import 'historico_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -505,9 +506,13 @@ class _HomeScreenState extends State<HomeScreen> {
             icone: Icons.bar_chart,
             titulo: 'Ver Resultados',
             subtitulo: 'Histórico e desempenho',
-            aoTapar: () {},
+            aoTapar: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const HistoricoScreen()),
+            ),
           ),
         ),
+
         const SizedBox(height: 12),
         // Botão adicionar curso (quando só tem 1 curso)
         if (_cursos.length <= 1)
