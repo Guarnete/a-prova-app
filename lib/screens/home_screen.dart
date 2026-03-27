@@ -8,6 +8,7 @@ import 'admin/admin_gate.dart';
 import 'historico_screen.dart';
 import 'ranking_screen.dart';
 import 'forum_screen.dart';
+import 'planos_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -558,6 +559,30 @@ const SizedBox(height: 12),
                   ),
                 ),
               );
+            },
+          ),
+        ),
+
+        const SizedBox(height: 12),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: _BotaoAcessoLargo(
+            icone: Icons.star,
+            titulo: 'Ver Planos',
+            subtitulo: 'Faz upgrade do teu plano',
+            aoTapar: () {
+              if (_instituicaoId.isEmpty || _cursoNome.isEmpty) return;
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PlanosScreen(
+                    instituicaoId: _instituicaoId,
+                    instituicaoSigla: _instituicaoSigla,
+                    cursoNome: _cursoNome,
+                    planoActual: _curso?['plano'] ?? 'gratuito',
+                  ),
+                ),
+              ).then((_) => _carregarPerfil());
             },
           ),
         ),
