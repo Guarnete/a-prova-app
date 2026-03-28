@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/normalizador.dart';
 import '../../services/admin_service.dart';
 
 class AdminQuestoesScreen extends StatefulWidget {
@@ -75,7 +76,7 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
     setState(() => _carregando = true);
     final anos = await _adminService.carregarAnosAdmin(
       instituicaoId: _instituicao!['id'],
-      cursoId: _curso!['id'],
+      cursoId: Normalizador.cursoId(_curso!['id'] as String),
     );
     setState(() { _anos = anos; _carregando = false; });
   }
@@ -96,7 +97,7 @@ class _AdminQuestoesScreenState extends State<AdminQuestoesScreen> {
       // Encontra o exame na colecção avaliacoes
       final exames = await _adminService.carregarExames(
         instituicaoId: _instituicao!['id'],
-        cursoId: _curso!['id'],
+        cursoId: Normalizador.cursoId(_curso!['id'] as String),
         ano: '${_ano!['ano']}',
       );
       final exame = exames.where((e) => e['disciplina'] == _disciplina).firstOrNull;

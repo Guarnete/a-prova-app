@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/normalizador.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'disciplinas_screen.dart';
@@ -71,15 +72,7 @@ class _AnosScreenState extends State<AnosScreen> {
   }
 
 // Remove acentos e converte para ID do Firestore
-  String _normalizarId(String texto) {
-    const acentos = 'àáâãäçèéêëìíîïñòóôõöùúûüý';
-    const semAcentos = 'aaaaaaceeeeiiiinooooouuuuy';
-    var resultado = texto.toLowerCase();
-    for (int i = 0; i < acentos.length; i++) {
-      resultado = resultado.replaceAll(acentos[i], semAcentos[i]);
-    }
-    return resultado.replaceAll(' ', '-');
-  }
+  String _normalizarId(String texto) => Normalizador.cursoId(texto);
 
   // Carrega anos do Firestore: instituicoes/{id}/cursos/{cursoId}/anos
   Future<void> _carregarAnos() async {

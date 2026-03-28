@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/normalizador.dart';
 import '../../services/admin_service.dart';
 
 class AdminConteudoScreen extends StatefulWidget {
@@ -505,7 +506,7 @@ class _AdminConteudoScreenState extends State<AdminConteudoScreen> {
               Navigator.pop(context);
               await _adminService.adicionarCurso(
                 instituicaoId: _instituicao!['id'],
-                cursoId: idController.text.trim(),
+                cursoId: Normalizador.cursoId(idController.text.trim()),
                 nome: nomeController.text.trim(),
                 disciplinas: disciplinasController.text.trim(),
               );

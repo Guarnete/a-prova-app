@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/normalizador.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'resultado_screen.dart';
 
@@ -36,15 +37,7 @@ class _SimuladorScreenState extends State<SimuladorScreen> {
   bool _carregando = true;
   bool _semQuestoes = false;
 
-  String get _cursoId {
-    const acentos = 'àáâãäçèéêëìíîïñòóôõöùúûüý';
-    const semAcentos = 'aaaaaaceeeeiiiinooooouuuuy';
-    var resultado = widget.cursoNome.toLowerCase();
-    for (int i = 0; i < acentos.length; i++) {
-      resultado = resultado.replaceAll(acentos[i], semAcentos[i]);
-    }
-    return resultado.replaceAll(' ', '-');
-  }
+  String get _cursoId => Normalizador.cursoId(widget.cursoNome);
 
   @override
   void initState() {

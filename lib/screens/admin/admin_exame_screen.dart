@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../utils/normalizador.dart';
 import '../../services/admin_service.dart';
 
 class AdminExameScreen extends StatefulWidget {
@@ -81,10 +82,11 @@ class _AdminExameScreenState extends State<AdminExameScreen> {
     if (_instituicao == null || _curso == null) return;
     final anos = await _adminService.carregarAnosAdmin(
       instituicaoId: _instituicao!['id'],
-      cursoId: _curso!['id'],
+      cursoId: Normalizador.cursoId(_curso!['id'] as String),
     );
     setState(() { _anos = anos; _ano = null; _disciplinas = []; });
   }
+  
 
   void _carregarDisciplinas() {
     if (_curso == null) return;
@@ -105,7 +107,7 @@ class _AdminExameScreenState extends State<AdminExameScreen> {
       // Verifica se já existe exame para esta combinação
       final examesExistentes = await _adminService.carregarExames(
         instituicaoId: _instituicao!['id'],
-        cursoId: _curso!['id'],
+        cursoId: Normalizador.cursoId(_curso!['id'] as String),
         ano: '${_ano!['ano']}',
       );
 
@@ -120,7 +122,7 @@ class _AdminExameScreenState extends State<AdminExameScreen> {
 
       final exameId = await _adminService.criarExame(
         instituicaoId: _instituicao!['id'],
-        cursoId: _curso!['id'],
+        cursoId: Normalizador.cursoId(_curso!['id'] as String),
         ano: '${_ano!['ano']}',
         disciplina: _disciplina!,
         tipo: _tipo,
