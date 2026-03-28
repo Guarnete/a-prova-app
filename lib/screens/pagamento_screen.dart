@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/pagamento_service.dart';
-import 'home_screen.dart';
+import 'splash_screen.dart';
 
 class PagamentoScreen extends StatefulWidget {
   final String planoId;
@@ -446,7 +446,7 @@ class _PagamentoScreenState extends State<PagamentoScreen> {
                 onPressed: () => Navigator.pushAndRemoveUntil(
                   context,
                   MaterialPageRoute(
-                      builder: (_) => const HomeScreen()),
+                      builder: (_) => const SplashScreen()),
                   (route) => false,
                 ),
                 style: ElevatedButton.styleFrom(

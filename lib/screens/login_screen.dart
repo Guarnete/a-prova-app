@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/auth_service.dart';
 import '../widgets/app_dialog.dart';
 import 'register_screen.dart';
@@ -16,21 +17,56 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
   final _authService = AuthService();
   bool _passwordVisivel = false;
   bool _lembrarMe = false;
   bool _carregando = false;
 
   @override
+  void initState() {
+    super.initState();
+    _carregarEmailGuardado();
+  }
+
+  Future<void> _carregarEmailGuardado() async {
+    final prefs = await SharedPreferences.getInstance();
+    final emailGuardado = prefs.getString('email_guardado') ?? '';
+    final lembrar = prefs.getBool('lembrar_me') ?? false;
+    if (lembrar && emailGuardado.isNotEmpty) {
+      setState(() {
+        _emailController.text = emailGuardado;
+        _lembrarMe = true;
+      });
+    }
+  }
+
+  Future<void> _guardarOuLimparEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (_lembrarMe) {
+      await prefs.setString('email_guardado', _emailController.text.trim());
+      await prefs.setBool('lembrar_me', true);
+    } else {
+      await prefs.remove('email_guardado');
+      await prefs.setBool('lembrar_me', false);
+    }
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
   Future<void> _entrar() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _carregando = true);
+
+    await _guardarOuLimparEmail();
 
     final resultado = await _authService.login(
       email: _emailController.text,
@@ -41,18 +77,15 @@ class _LoginScreenState extends State<LoginScreen> {
     if (!mounted) return;
 
     if (resultado['sucesso']) {
-      // Verificar se o utilizador já completou o onboarding
       final onboardingFeito = await _authService.onboardingCompleto();
       if (!mounted) return;
 
       if (!onboardingFeito) {
-        // Primeira vez → ir para Onboarding
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const OnboardingScreen()),
         );
       } else {
-        // Já tem perfil → mostrar boas-vindas e ir para Home
         final user = _authService.currentUser;
         final nome = user?.displayName ?? 'Estudante';
         await AppDialog.bemVindo(
@@ -90,7 +123,7 @@ class _LoginScreenState extends State<LoginScreen> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Text('Insere o teu email para receber instruções de recuperação.'),
+            const Text('Insere o teu email para receber instrucoes de recuperacao.'),
             const SizedBox(height: 16),
             TextField(
               controller: emailController,
@@ -178,7 +211,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 40),
                   TextFormField(
                     controller: _emailController,
+                    focusNode: _emailFocus,
                     keyboardType: TextInputType.emailAddress,
+                    textInputAction: TextInputAction.next,
+                    onFieldSubmitted: (_) {
+                      FocusScope.of(context).requestFocus(_passwordFocus);
+                    },
                     decoration: InputDecoration(
                       labelText: 'Email',
                       prefixIcon: const Icon(Icons.email, color: Color(0xFF007AFF)),
@@ -190,14 +228,17 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                     validator: (value) {
                       if (value == null || value.isEmpty) return 'Por favor, insere o teu email';
-                      if (!value.contains('@')) return 'Email inválido';
+                      if (!value.contains('@')) return 'Email invalido';
                       return null;
                     },
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
                     controller: _passwordController,
+                    focusNode: _passwordFocus,
                     obscureText: !_passwordVisivel,
+                    textInputAction: TextInputAction.done,
+                    onFieldSubmitted: (_) => _carregando ? null : _entrar(),
                     decoration: InputDecoration(
                       labelText: 'Password',
                       prefixIcon: const Icon(Icons.lock, color: Color(0xFF007AFF)),

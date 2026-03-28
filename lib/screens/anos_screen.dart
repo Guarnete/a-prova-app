@@ -3,6 +3,7 @@ import '../utils/normalizador.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'disciplinas_screen.dart';
+import 'planos_screen.dart';
 
 class AnosScreen extends StatefulWidget {
   final String instituicaoId;
@@ -490,7 +491,22 @@ class _AnosScreenState extends State<AnosScreen> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () {
+                    Navigator.pop(context);
+                    if (bloqueadoPorPlano) {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PlanosScreen(
+                            instituicaoId: widget.instituicaoId,
+                            instituicaoSigla: widget.instituicaoSigla,
+                            cursoNome: widget.cursoNome,
+                            planoActual: _planoUtilizador,
+                          ),
+                        ),
+                      );
+                    }
+                  },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: cor,
                     padding: const EdgeInsets.symmetric(vertical: 14),

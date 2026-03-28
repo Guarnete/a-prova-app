@@ -198,4 +198,15 @@ class ForumService {
         .doc(respostaId)
         .update({'activo': false});
   }
+
+  // Carrega um post directamente pelo ID
+  Future<Map<String, dynamic>?> carregarPostPorId(String postId) async {
+    try {
+      final doc = await _firestore.collection('forum').doc(postId).get();
+      if (!doc.exists) return null;
+      return {'id': doc.id, ...doc.data()!};
+    } catch (e) {
+      return null;
+    }
+  }
 }
